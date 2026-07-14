@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  RECEIVED
+  ACCEPTED
+  COOKING
+  READY
+  COLLECTED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  ONLINE
+  PICKUP
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PAY_AT_PICKUP
+  REFUNDED
+}
+
+model Settings {
+  id               String  @id @default("main")
+  venueName        String
+  phone            String
+  address          String
+  isOrderingOpen   Boolean @default(true)
+  pickupMinutes    Int     @default(30)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  sortOrder Int        @default(0)
+  active    Boolean    @default(true)
+  items     MenuItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model MenuItem {
+  id          String      @id @default(cuid())
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name        String
+  description String      @default("")
+  priceCents  Int
+  active      Boolean     @default(true)
+  soldOut     Boolean     @default(false)
+  dietary     String[]    @default([])
+  sortOrder   Int         @default(0)
+  orderLines  OrderLine[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([categoryId, sortOrder])
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     Int           @unique
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  pickupTime      DateTime
+  notes           String?
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus
+  stripeSessionId String?       @unique
+  status          OrderStatus
+  subtotalCents   Int
+  totalCents      Int
+  lines           OrderLine[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status, createdAt])
+  @@index([pickupTime])
+}
+
+model OrderLine {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemId         String
+  item           MenuItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  name           String
+  quantity       Int
+  unitPriceCents Int
+  notes          String?
+
+  @@index([orderId])
+  @@index([itemId])
+}
+
+model Counter {
+  id    String @id
+  value Int    @default(0)
+}

@@ -1,0 +1,36 @@
+{
+  "name": "brokie-ordering-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "seed": "prisma db seed"
+  },
+  "dependencies": {
+    "jose": "^6.0.0",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "stripe": "^18.0.0",
+    "zod": "^4.0.0",
+    "@prisma/client": "6.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.9.0",
+    "prisma": "6.19.0",
+    "tsx": "^4.20.6"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
