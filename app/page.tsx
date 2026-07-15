@@ -1,6 +1,9 @@
 import { getSettings } from "@/lib/db";
+import SiteHeader from "@/components/SiteHeader";
+
 
 export const dynamic = "force-dynamic";
+
 
 export default async function Home() {
   const settings = await getSettings();
@@ -11,25 +14,8 @@ export default async function Home() {
         <span>Open daily • Cold beer • Great food • Local hospitality</span>
         <a href="/order">Order food online →</a>
       </div>
-
-      <header className="site-header">
-        <a href="/" className="brand">
-          <span className="mark">BH</span>
-          <span>
-            BROKEN HILL
-            <small>HOTEL • EST. 1899</small>
-          </span>
-        </a>
-
-        <nav className="site-nav">
-          <a href="#eat">Eat</a>
-          <a href="#stay">Stay</a>
-          <a href="#whats-on">What&apos;s On</a>
-          <a href="#visit">Visit</a>
-          <a className="button light" href="/admin">Staff</a>
-          <a className="button" href="/order">Order online</a>
-        </nav>
-      </header>
+    <SiteHeader />
+    
 
       <main>
         <section className="home-hero">
