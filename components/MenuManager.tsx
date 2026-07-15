@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { Category, MenuItem } from "@/lib/types";
 
 type Special = {
@@ -52,10 +58,15 @@ type ImagePreviewProps = {
   title: string;
   subtitle: string;
   className?: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 };
 
-const emptyDraft = (categoryId = ""): ItemDraft => ({
+type ApiError = {
+  error?: string;
+  details?: unknown;
+};
+
+const emptyItemDraft = (categoryId = ""): ItemDraft => ({
   categoryId,
   name: "",
   description: "",
@@ -78,6 +89,56 @@ const emptySpecialDraft = (): SpecialDraft => ({
   sortOrder: "0",
 });
 
+async function readApiResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+
+  if (!text) {
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}.`);
+    }
+
+    return {} as T;
+  }
+
+  let data: T | ApiError;
+
+  try {
+    data = JSON.parse(text) as T | ApiError;
+  } catch {
+    console.error("Non-JSON API response:", text);
+
+    throw new Error(
+      `The server returned HTML instead of JSON (${response.status}). Check that the API route exists and is in the correct folder.`,
+    );
+  }
+
+  if (!response.ok) {
+    const apiError = data as ApiError;
+
+    throw new Error(
+      apiError.error || `Request failed with status ${response.status}.`,
+    );
+  }
+
+  return data as T;
+}
+
+function normalizeSpecial(special: Special): Special {
+  return {
+    ...special,
+    description: special.description ?? null,
+    day: special.day ?? null,
+    badge: special.badge ?? null,
+    imageUrl: special.imageUrl ?? null,
+    price:
+      special.price === null || special.price === ""
+        ? null
+        : Number(special.price),
+    active: Boolean(special.active),
+    sortOrder: Number(special.sortOrder) || 0,
+  };
+}
+
 function ImagePreview({
   src,
   alt,
@@ -87,21 +148,23 @@ function ImagePreview({
   children,
 }: ImagePreviewProps) {
   const [failed, setFailed] = useState(false);
-  const hasImage = Boolean(src?.trim()) && !failed;
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  const cleanSource = src?.trim() ?? "";
+  const showImage = cleanSource.length > 0 && !failed;
 
   return (
     <div className={`menu-image-frame ${className}`}>
-      {hasImage && (
+      {showImage ? (
         <img
-          key={src}
-          src={src ?? ""}
+          src={cleanSource}
           alt={alt}
-          onLoad={() => setFailed(false)}
           onError={() => setFailed(true)}
         />
-      )}
-
-      {!hasImage && (
+      ) : (
         <div className="menu-image-placeholder">
           <span className="menu-placeholder-mark">BH</span>
           <strong>{title}</strong>
@@ -122,33 +185,35 @@ export default function MenuManager({
   const [activePanel, setActivePanel] =
     useState<"menu" | "specials">("menu");
 
-  const [categories, setCategories] =
-    useState<Category[]>(initialCategories);
+  const [categories, setCategories] = useState<Category[]>(
+    Array.isArray(initialCategories) ? initialCategories : [],
+  );
 
-  const [items, setItems] =
-    useState<MenuItem[]>(initialItems);
+  const [items, setItems] = useState<MenuItem[]>(
+    Array.isArray(initialItems) ? initialItems : [],
+  );
 
-  const [specials, setSpecials] =
-    useState<Special[]>(
-      Array.isArray(initialSpecials)
-        ? initialSpecials
-        : [],
-    );
+  const [specials, setSpecials] = useState<Special[]>(
+    Array.isArray(initialSpecials)
+      ? initialSpecials.map(normalizeSpecial)
+      : [],
+  );
 
-  const [selectedCategory, setSelectedCategory] =
-    useState(initialCategories[0]?.id ?? "");
+  const [selectedCategory, setSelectedCategory] = useState(
+    initialCategories?.[0]?.id ?? "",
+  );
 
-  const [draft, setDraft] = useState<ItemDraft>(
-    emptyDraft(initialCategories[0]?.id ?? ""),
+  const [itemDraft, setItemDraft] = useState<ItemDraft>(
+    emptyItemDraft(initialCategories?.[0]?.id ?? ""),
   );
 
   const [specialDraft, setSpecialDraft] =
     useState<SpecialDraft>(emptySpecialDraft());
 
   const [categoryName, setCategoryName] = useState("");
+  const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [search, setSearch] = useState("");
 
   const sortedCategories = useMemo(
     () =>
@@ -165,18 +230,15 @@ export default function MenuManager({
 
     return [...items]
       .filter((item) => {
-        const matchesCategory =
-          !selectedCategory ||
-          item.categoryId === selectedCategory;
+        const categoryMatches =
+          !selectedCategory || item.categoryId === selectedCategory;
 
-        const matchesSearch =
+        const searchMatches =
           !query ||
           item.name.toLowerCase().includes(query) ||
-          (item.description ?? "")
-            .toLowerCase()
-            .includes(query);
+          (item.description ?? "").toLowerCase().includes(query);
 
-        return matchesCategory && matchesSearch;
+        return categoryMatches && searchMatches;
       })
       .sort(
         (a, b) =>
@@ -196,20 +258,19 @@ export default function MenuManager({
   );
 
   const selectedCategoryName =
-    categories.find(
-      (category) => category.id === selectedCategory,
-    )?.name ?? "All items";
+    categories.find((category) => category.id === selectedCategory)
+      ?.name ?? "All items";
 
   function notify(text: string) {
     setMessage(text);
 
     window.setTimeout(() => {
       setMessage("");
-    }, 2200);
+    }, 2600);
   }
 
-  function resetDraft(categoryId = selectedCategory) {
-    setDraft(emptyDraft(categoryId));
+  function resetItemDraft(categoryId = selectedCategory) {
+    setItemDraft(emptyItemDraft(categoryId));
   }
 
   function resetSpecialDraft() {
@@ -220,7 +281,7 @@ export default function MenuManager({
     setActivePanel("menu");
     setSelectedCategory(item.categoryId);
 
-    setDraft({
+    setItemDraft({
       id: item.id,
       categoryId: item.categoryId,
       name: item.name,
@@ -265,402 +326,315 @@ export default function MenuManager({
     });
   }
 
-  async function saveItem(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function saveItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (busy) {
+      return;
+    }
+
     setBusy(true);
 
     try {
-      const priceCents = Math.round(
-        Number(draft.price) * 100,
-      );
+      const priceCents = Math.round(Number(itemDraft.price) * 100);
+      const sortOrder = Number(itemDraft.sortOrder);
 
-      if (!draft.categoryId) {
+      if (!itemDraft.categoryId) {
         throw new Error("Choose a category.");
       }
 
-      if (!draft.name.trim()) {
-        throw new Error("Enter an item name.");
+      if (itemDraft.name.trim().length < 2) {
+        throw new Error("Enter a valid menu item name.");
       }
 
-      if (
-        !Number.isFinite(priceCents) ||
-        priceCents < 0
-      ) {
+      if (!Number.isFinite(priceCents) || priceCents < 0) {
         throw new Error("Enter a valid price.");
       }
 
-      const payload = {
-        categoryId: draft.categoryId,
-        name: draft.name.trim(),
-        description: draft.description.trim(),
-        imageUrl:
-          draft.imageUrl.trim() || null,
-        priceCents,
-        active: draft.active,
-        soldOut: draft.soldOut,
-        dietary: draft.dietary
-          .split(",")
-          .map((tag) =>
-            tag.trim().toUpperCase(),
-          )
-          .filter(Boolean),
-        sortOrder:
-          Number(draft.sortOrder) || 0,
-      };
-
-      const response = await fetch(
-        draft.id
-          ? `/api/admin/menu/${draft.id}`
-          : "/api/admin/menu",
-        {
-          method: draft.id
-            ? "PATCH"
-            : "POST",
-          headers: {
-            "content-type":
-              "application/json",
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          result.error ||
-            "Could not save item.",
-        );
+      if (
+        itemDraft.sortOrder.trim() &&
+        !Number.isInteger(sortOrder)
+      ) {
+        throw new Error("Display order must be a whole number.");
       }
 
-      if (draft.id) {
+      const payload = {
+        categoryId: itemDraft.categoryId,
+        name: itemDraft.name.trim(),
+        description: itemDraft.description.trim(),
+        imageUrl: itemDraft.imageUrl.trim() || null,
+        priceCents,
+        active: itemDraft.active,
+        soldOut: itemDraft.soldOut,
+        dietary: itemDraft.dietary
+          .split(",")
+          .map((tag) => tag.trim().toUpperCase())
+          .filter(Boolean),
+        sortOrder: Number.isInteger(sortOrder) ? sortOrder : 0,
+      };
+
+      const isEditing = Boolean(itemDraft.id);
+
+      const endpoint = isEditing
+        ? `/api/admin/menu/${encodeURIComponent(itemDraft.id!)}`
+        : "/api/admin/menu";
+
+      const response = await fetch(endpoint, {
+        method: isEditing ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const savedItem = await readApiResponse<MenuItem>(response);
+
+      if (isEditing) {
         setItems((current) =>
           current.map((item) =>
-            item.id === result.id
-              ? result
-              : item,
+            item.id === savedItem.id ? savedItem : item,
           ),
         );
 
         notify("Menu item updated");
       } else {
-        setItems((current) => [
-          ...current,
-          result,
-        ]);
-
+        setItems((current) => [...current, savedItem]);
         notify("Menu item created");
       }
 
-      setSelectedCategory(
-        result.categoryId,
-      );
-
-      resetDraft(result.categoryId);
+      setSelectedCategory(savedItem.categoryId);
+      resetItemDraft(savedItem.categoryId);
     } catch (error) {
+      console.error("Save menu item error:", error);
+
       notify(
         error instanceof Error
           ? error.message
-          : "Could not save item",
+          : "Could not save menu item.",
       );
     } finally {
       setBusy(false);
     }
   }
 
-  async function saveSpecial(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function saveSpecial(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (busy) {
+      return;
+    }
+
     setBusy(true);
 
     try {
-      const price = Number(
-        specialDraft.price,
-      );
+      const title = specialDraft.title.trim();
+      const price = Number(specialDraft.price);
+      const sortOrder = Number(specialDraft.sortOrder);
 
-      if (!specialDraft.title.trim()) {
-        throw new Error(
-          "Enter a special title.",
-        );
+      if (title.length < 2) {
+        throw new Error("Enter a valid special title.");
+      }
+
+      if (!Number.isFinite(price) || price < 0) {
+        throw new Error("Enter a valid price.");
       }
 
       if (
-        !Number.isFinite(price) ||
-        price < 0
+        specialDraft.sortOrder.trim() &&
+        !Number.isInteger(sortOrder)
       ) {
-        throw new Error(
-          "Enter a valid price.",
-        );
+        throw new Error("Display order must be a whole number.");
       }
 
       const payload = {
-        title:
-          specialDraft.title.trim(),
-        description:
-          specialDraft.description.trim() ||
-          null,
+        title,
+        description: specialDraft.description.trim() || null,
         price,
-        day:
-          specialDraft.day.trim() || null,
-        badge:
-          specialDraft.badge.trim() ||
-          "CHEF SPECIAL",
-        imageUrl:
-          specialDraft.imageUrl.trim() ||
-          null,
+        day: specialDraft.day.trim() || null,
+        badge: specialDraft.badge.trim() || "CHEF SPECIAL",
+        imageUrl: specialDraft.imageUrl.trim() || null,
         active: specialDraft.active,
-        sortOrder:
-          Number(
-            specialDraft.sortOrder,
-          ) || 0,
+        sortOrder: Number.isInteger(sortOrder) ? sortOrder : 0,
       };
 
-      const response = await fetch(
-        specialDraft.id
-          ? `/api/admin/specials/${specialDraft.id}`
-          : "/api/admin/specials",
-        {
-          method: specialDraft.id
-            ? "PATCH"
-            : "POST",
-          headers: {
-            "content-type":
-              "application/json",
-          },
-          body: JSON.stringify(payload),
+      const isEditing = Boolean(specialDraft.id);
+
+      const endpoint = isEditing
+        ? `/api/admin/specials/${encodeURIComponent(
+            specialDraft.id!,
+          )}`
+        : "/api/admin/specials";
+
+      const response = await fetch(endpoint, {
+        method: isEditing ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify(payload),
+      });
 
-      const result = await response.json();
+      const result = await readApiResponse<Special>(response);
+      const savedSpecial = normalizeSpecial(result);
 
-      if (!response.ok) {
-        throw new Error(
-          result.error ||
-            "Could not save chef special.",
-        );
-      }
-
-      const normalized: Special = {
-        ...result,
-        price:
-          result.price === null
-            ? null
-            : Number(result.price),
-      };
-
-      if (specialDraft.id) {
+      if (isEditing) {
         setSpecials((current) =>
           current.map((special) =>
-            special.id === normalized.id
-              ? normalized
-              : special,
+            special.id === savedSpecial.id ? savedSpecial : special,
           ),
         );
 
         notify("Chef special updated");
       } else {
-        setSpecials((current) => [
-          ...current,
-          normalized,
-        ]);
-
+        setSpecials((current) => [...current, savedSpecial]);
         notify("Chef special created");
       }
 
       resetSpecialDraft();
     } catch (error) {
+      console.error("Save chef special error:", error);
+
       notify(
         error instanceof Error
           ? error.message
-          : "Could not save chef special",
+          : "Could not save chef special.",
       );
     } finally {
       setBusy(false);
     }
   }
 
-  async function deleteItem(
-    item: MenuItem,
-  ) {
-    const confirmed = window.confirm(
-      `Delete "${item.name}"?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    const response = await fetch(
-      `/api/admin/menu/${item.id}`,
-      {
-        method: "DELETE",
-      },
-    );
-
-    if (!response.ok) {
-      const result =
-        await response.json();
-
-      notify(
-        result.error ||
-          "Could not delete item",
-      );
-
-      return;
-    }
-
-    setItems((current) =>
-      current.filter(
-        (entry) => entry.id !== item.id,
-      ),
-    );
-
-    if (draft.id === item.id) {
-      resetDraft();
-    }
-
-    notify("Menu item deleted");
-  }
-
-  async function deleteSpecial(
-    special: Special,
-  ) {
-    const confirmed = window.confirm(
-      `Delete chef special "${special.title}"?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    const response = await fetch(
-      `/api/admin/specials/${special.id}`,
-      {
-        method: "DELETE",
-      },
-    );
-
-    if (!response.ok) {
-      const result =
-        await response.json();
-
-      notify(
-        result.error ||
-          "Could not delete chef special",
-      );
-
-      return;
-    }
-
-    setSpecials((current) =>
-      current.filter(
-        (entry) =>
-          entry.id !== special.id,
-      ),
-    );
-
-    if (
-      specialDraft.id === special.id
-    ) {
-      resetSpecialDraft();
-    }
-
-    notify("Chef special deleted");
-  }
-
-  async function quickUpdate(
+  async function quickUpdateItem(
     item: MenuItem,
     changes: Partial<MenuItem>,
   ) {
-    const response = await fetch(
-      `/api/admin/menu/${item.id}`,
-      {
-        method: "PATCH",
-        headers: {
-          "content-type":
-            "application/json",
+    try {
+      const response = await fetch(
+        `/api/admin/menu/${encodeURIComponent(item.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(changes),
         },
-        body: JSON.stringify(changes),
-      },
-    );
-
-    if (!response.ok) {
-      const result =
-        await response.json();
-
-      notify(
-        result.error ||
-          "Could not update item",
       );
 
-      return;
+      const updated = await readApiResponse<MenuItem>(response);
+
+      setItems((current) =>
+        current.map((entry) =>
+          entry.id === item.id ? updated : entry,
+        ),
+      );
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Could not update menu item.",
+      );
     }
-
-    const updated = await response.json();
-
-    setItems((current) =>
-      current.map((entry) =>
-        entry.id === item.id
-          ? updated
-          : entry,
-      ),
-    );
   }
 
   async function quickUpdateSpecial(
     special: Special,
     changes: Partial<Special>,
   ) {
-    const response = await fetch(
-      `/api/admin/specials/${special.id}`,
-      {
-        method: "PATCH",
-        headers: {
-          "content-type":
-            "application/json",
+    try {
+      const response = await fetch(
+        `/api/admin/specials/${encodeURIComponent(special.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(changes),
         },
-        body: JSON.stringify(changes),
-      },
-    );
-
-    if (!response.ok) {
-      const result =
-        await response.json();
-
-      notify(
-        result.error ||
-          "Could not update chef special",
       );
 
+      const result = await readApiResponse<Special>(response);
+      const updated = normalizeSpecial(result);
+
+      setSpecials((current) =>
+        current.map((entry) =>
+          entry.id === special.id ? updated : entry,
+        ),
+      );
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Could not update chef special.",
+      );
+    }
+  }
+
+  async function deleteItem(item: MenuItem) {
+    if (!window.confirm(`Delete "${item.name}"?`)) {
       return;
     }
 
-    const updated =
-      await response.json();
+    try {
+      const response = await fetch(
+        `/api/admin/menu/${encodeURIComponent(item.id)}`,
+        {
+          method: "DELETE",
+        },
+      );
 
-    setSpecials((current) =>
-      current.map((entry) =>
-        entry.id === special.id
-          ? {
-              ...updated,
-              price:
-                updated.price === null
-                  ? null
-                  : Number(
-                      updated.price,
-                    ),
-            }
-          : entry,
-      ),
-    );
+      await readApiResponse<{ success: boolean }>(response);
+
+      setItems((current) =>
+        current.filter((entry) => entry.id !== item.id),
+      );
+
+      if (itemDraft.id === item.id) {
+        resetItemDraft();
+      }
+
+      notify("Menu item deleted");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Could not delete menu item.",
+      );
+    }
   }
 
-  async function createCategory(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function deleteSpecial(special: Special) {
+    if (!window.confirm(`Delete chef special "${special.title}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/admin/specials/${encodeURIComponent(special.id)}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      await readApiResponse<{ success: boolean }>(response);
+
+      setSpecials((current) =>
+        current.filter((entry) => entry.id !== special.id),
+      );
+
+      if (specialDraft.id === special.id) {
+        resetSpecialDraft();
+      }
+
+      notify("Chef special deleted");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Could not delete chef special.",
+      );
+    }
+  }
+
+  async function createCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const name = categoryName.trim();
@@ -669,212 +643,153 @@ export default function MenuManager({
       return;
     }
 
-    const response = await fetch(
-      "/api/admin/categories",
-      {
+    try {
+      const response = await fetch("/api/admin/categories", {
         method: "POST",
         headers: {
-          "content-type":
-            "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ name }),
-      },
-    );
+      });
 
-    const result = await response.json();
+      const category = await readApiResponse<Category>(response);
 
-    if (!response.ok) {
+      setCategories((current) => [...current, category]);
+      setCategoryName("");
+      setSelectedCategory(category.id);
+      resetItemDraft(category.id);
+      notify("Category created");
+    } catch (error) {
       notify(
-        result.error ||
-          "Could not create category",
+        error instanceof Error
+          ? error.message
+          : "Could not create category.",
       );
-
-      return;
     }
-
-    setCategories((current) => [
-      ...current,
-      result,
-    ]);
-
-    setCategoryName("");
-    setSelectedCategory(result.id);
-    resetDraft(result.id);
-    notify("Category created");
   }
 
-  async function renameCategory(
-    category: Category,
-  ) {
+  async function renameCategory(category: Category) {
     const name = window
-      .prompt(
-        "Category name",
-        category.name,
-      )
+      .prompt("Category name", category.name)
       ?.trim();
 
-    if (
-      !name ||
-      name === category.name
-    ) {
+    if (!name || name === category.name) {
       return;
     }
 
-    const response = await fetch(
-      `/api/admin/categories/${category.id}`,
-      {
-        method: "PATCH",
-        headers: {
-          "content-type":
-            "application/json",
+    try {
+      const response = await fetch(
+        `/api/admin/categories/${encodeURIComponent(category.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ name }),
         },
-        body: JSON.stringify({ name }),
-      },
-    );
-
-    if (!response.ok) {
-      const result =
-        await response.json();
-
-      notify(
-        result.error ||
-          "Could not rename category",
       );
 
-      return;
-    }
+      const updated = await readApiResponse<Category>(response);
 
-    const updated = await response.json();
-
-    setCategories((current) =>
-      current.map((entry) =>
-        entry.id === category.id
-          ? updated
-          : entry,
-      ),
-    );
-
-    notify("Category renamed");
-  }
-
-  async function toggleCategory(
-    category: Category,
-  ) {
-    const response = await fetch(
-      `/api/admin/categories/${category.id}`,
-      {
-        method: "PATCH",
-        headers: {
-          "content-type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          active: !category.active,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const result =
-        await response.json();
-
-      notify(
-        result.error ||
-          "Could not update category",
+      setCategories((current) =>
+        current.map((entry) =>
+          entry.id === category.id ? updated : entry,
+        ),
       );
 
-      return;
+      notify("Category renamed");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Could not rename category.",
+      );
     }
-
-    const updated = await response.json();
-
-    setCategories((current) =>
-      current.map((entry) =>
-        entry.id === category.id
-          ? updated
-          : entry,
-      ),
-    );
   }
 
-  async function deleteCategory(
-    category: Category,
-  ) {
+  async function toggleCategory(category: Category) {
+    try {
+      const response = await fetch(
+        `/api/admin/categories/${encodeURIComponent(category.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            active: !category.active,
+          }),
+        },
+      );
+
+      const updated = await readApiResponse<Category>(response);
+
+      setCategories((current) =>
+        current.map((entry) =>
+          entry.id === category.id ? updated : entry,
+        ),
+      );
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Could not update category.",
+      );
+    }
+  }
+
+  async function deleteCategory(category: Category) {
     const hasItems = items.some(
-      (item) =>
-        item.categoryId === category.id,
+      (item) => item.categoryId === category.id,
     );
 
     if (hasItems) {
+      notify("Move or delete this category's menu items first.");
+      return;
+    }
+
+    if (!window.confirm(`Delete category "${category.name}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/admin/categories/${encodeURIComponent(category.id)}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      await readApiResponse<{ success: boolean }>(response);
+
+      const remaining = categories.filter(
+        (entry) => entry.id !== category.id,
+      );
+
+      const nextCategoryId = remaining[0]?.id ?? "";
+
+      setCategories(remaining);
+      setSelectedCategory(nextCategoryId);
+      resetItemDraft(nextCategoryId);
+      notify("Category deleted");
+    } catch (error) {
       notify(
-        "Move or delete this category's menu items first",
+        error instanceof Error
+          ? error.message
+          : "Could not delete category.",
       );
-
-      return;
     }
-
-    const confirmed = window.confirm(
-      `Delete category "${category.name}"?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    const response = await fetch(
-      `/api/admin/categories/${category.id}`,
-      {
-        method: "DELETE",
-      },
-    );
-
-    if (!response.ok) {
-      const result =
-        await response.json();
-
-      notify(
-        result.error ||
-          "Could not delete category",
-      );
-
-      return;
-    }
-
-    const remaining =
-      categories.filter(
-        (entry) =>
-          entry.id !== category.id,
-      );
-
-    const nextId =
-      remaining[0]?.id ?? "";
-
-    setCategories(remaining);
-    setSelectedCategory(nextId);
-    resetDraft(nextId);
-
-    notify("Category deleted");
   }
 
   return (
     <div className="menu-manager menu-manager-redesign">
-      {message && (
-        <div className="menu-toast">
-          {message}
-        </div>
-      )}
+      {message && <div className="menu-toast">{message}</div>}
 
       <div className="menu-manager-switcher">
         <button
           type="button"
-          className={
-            activePanel === "menu"
-              ? "active"
-              : ""
-          }
-          onClick={() =>
-            setActivePanel("menu")
-          }
+          className={activePanel === "menu" ? "active" : ""}
+          onClick={() => setActivePanel("menu")}
         >
           Menu items
           <span>{items.length}</span>
@@ -882,14 +797,8 @@ export default function MenuManager({
 
         <button
           type="button"
-          className={
-            activePanel === "specials"
-              ? "active"
-              : ""
-          }
-          onClick={() =>
-            setActivePanel("specials")
-          }
+          className={activePanel === "specials" ? "active" : ""}
+          onClick={() => setActivePanel("specials")}
         >
           Chef specials
           <span>{specials.length}</span>
@@ -901,16 +810,11 @@ export default function MenuManager({
           <aside className="menu-sidebar">
             <div className="menu-sidebar-head">
               <div>
-                <div className="eyebrow">
-                  CATEGORIES
-                </div>
-
+                <div className="eyebrow">CATEGORIES</div>
                 <h2>Menu sections</h2>
               </div>
 
-              <span>
-                {categories.length}
-              </span>
+              <span>{categories.length}</span>
             </div>
 
             <form
@@ -920,119 +824,83 @@ export default function MenuManager({
               <input
                 value={categoryName}
                 onChange={(event) =>
-                  setCategoryName(
-                    event.target.value,
-                  )
+                  setCategoryName(event.target.value)
                 }
                 placeholder="New category"
               />
 
-              <button
-                className="button"
-                type="submit"
-              >
+              <button className="button" type="submit">
                 Add
               </button>
             </form>
 
             <div className="category-manager-list category-sidebar-list">
-              {sortedCategories.map(
-                (category) => {
-                  const count = items.filter(
-                    (item) =>
-                      item.categoryId ===
-                      category.id,
-                  ).length;
+              {sortedCategories.map((category) => {
+                const count = items.filter(
+                  (item) => item.categoryId === category.id,
+                ).length;
 
-                  return (
-                    <div
-                      className={`category-manager-row ${
-                        selectedCategory ===
-                        category.id
-                          ? "selected"
-                          : ""
-                      }`}
-                      key={category.id}
+                return (
+                  <div
+                    className={`category-manager-row ${
+                      selectedCategory === category.id
+                        ? "selected"
+                        : ""
+                    }`}
+                    key={category.id}
+                  >
+                    <button
+                      type="button"
+                      className="category-name-button"
+                      onClick={() => {
+                        setSelectedCategory(category.id);
+
+                        if (!itemDraft.id) {
+                          setItemDraft((current) => ({
+                            ...current,
+                            categoryId: category.id,
+                          }));
+                        }
+                      }}
                     >
+                      <span>
+                        <strong>{category.name}</strong>
+                        <small>{count} items</small>
+                      </span>
+
+                      <span
+                        className={`category-status-dot ${
+                          category.active ? "active" : ""
+                        }`}
+                      />
+                    </button>
+
+                    <div className="category-actions">
                       <button
                         type="button"
-                        className="category-name-button"
-                        onClick={() => {
-                          setSelectedCategory(
-                            category.id,
-                          );
-
-                          if (!draft.id) {
-                            setDraft(
-                              (current) => ({
-                                ...current,
-                                categoryId:
-                                  category.id,
-                              }),
-                            );
-                          }
-                        }}
+                        onClick={() => toggleCategory(category)}
                       >
-                        <span>
-                          <strong>
-                            {category.name}
-                          </strong>
-
-                          <small>
-                            {count} items
-                          </small>
-                        </span>
-
-                        <span
-                          className={`category-status-dot ${
-                            category.active
-                              ? "active"
-                              : ""
-                          }`}
-                        />
+                        {category.active ? "Hide" : "Show"}
                       </button>
 
-                      <div className="category-actions">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            toggleCategory(
-                              category,
-                            )
-                          }
-                        >
-                          {category.active
-                            ? "Hide"
-                            : "Show"}
-                        </button>
+                      <button
+                        type="button"
+                        onClick={() => renameCategory(category)}
+                      >
+                        Rename
+                      </button>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            renameCategory(
-                              category,
-                            )
-                          }
-                        >
-                          Rename
-                        </button>
-
-                        <button
-                          type="button"
-                          className="danger-text"
-                          onClick={() =>
-                            deleteCategory(
-                              category,
-                            )
-                          }
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        className="danger-text"
+                        onClick={() => deleteCategory(category)}
+                      >
+                        Delete
+                      </button>
                     </div>
-                  );
-                },
-              )}
+                  </div>
+                );
+              })}
             </div>
           </aside>
 
@@ -1040,24 +908,20 @@ export default function MenuManager({
             <section className="menu-editor-card menu-editor-redesign">
               <div className="menu-editor-heading">
                 <div>
-                  <div className="eyebrow">
-                    MENU EDITOR
-                  </div>
+                  <div className="eyebrow">MENU EDITOR</div>
 
                   <h2>
-                    {draft.id
+                    {itemDraft.id
                       ? "Edit menu item"
                       : "Create menu item"}
                   </h2>
                 </div>
 
-                {draft.id && (
+                {itemDraft.id && (
                   <button
-                    className="button light"
                     type="button"
-                    onClick={() =>
-                      resetDraft()
-                    }
+                    className="button light"
+                    onClick={() => resetItemDraft()}
                   >
                     Add new instead
                   </button>
@@ -1073,54 +937,40 @@ export default function MenuManager({
                     <label>
                       Category
                       <select
-                        value={
-                          draft.categoryId
-                        }
+                        value={itemDraft.categoryId}
                         onChange={(event) =>
-                          setDraft({
-                            ...draft,
-                            categoryId:
-                              event.target
-                                .value,
-                          })
+                          setItemDraft((current) => ({
+                            ...current,
+                            categoryId: event.target.value,
+                          }))
                         }
                         required
                       >
-                        <option value="">
-                          Choose category
-                        </option>
+                        <option value="">Choose category</option>
 
-                        {sortedCategories.map(
-                          (category) => (
-                            <option
-                              key={
-                                category.id
-                              }
-                              value={
-                                category.id
-                              }
-                            >
-                              {
-                                category.name
-                              }
-                            </option>
-                          ),
-                        )}
+                        {sortedCategories.map((category) => (
+                          <option
+                            key={category.id}
+                            value={category.id}
+                          >
+                            {category.name}
+                          </option>
+                        ))}
                       </select>
                     </label>
 
                     <label>
                       Item name
                       <input
-                        value={draft.name}
+                        value={itemDraft.name}
                         onChange={(event) =>
-                          setDraft({
-                            ...draft,
-                            name: event.target
-                              .value,
-                          })
+                          setItemDraft((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
                         }
                         placeholder="Classic Chicken Parmi"
+                        maxLength={100}
                         required
                       />
                     </label>
@@ -1133,14 +983,12 @@ export default function MenuManager({
                         type="number"
                         min="0"
                         step="0.01"
-                        value={draft.price}
+                        value={itemDraft.price}
                         onChange={(event) =>
-                          setDraft({
-                            ...draft,
-                            price:
-                              event.target
-                                .value,
-                          })
+                          setItemDraft((current) => ({
+                            ...current,
+                            price: event.target.value,
+                          }))
                         }
                         placeholder="28.00"
                         required
@@ -1151,16 +999,13 @@ export default function MenuManager({
                       Display order
                       <input
                         type="number"
-                        value={
-                          draft.sortOrder
-                        }
+                        step="1"
+                        value={itemDraft.sortOrder}
                         onChange={(event) =>
-                          setDraft({
-                            ...draft,
-                            sortOrder:
-                              event.target
-                                .value,
-                          })
+                          setItemDraft((current) => ({
+                            ...current,
+                            sortOrder: event.target.value,
+                          }))
                         }
                       />
                     </label>
@@ -1170,79 +1015,74 @@ export default function MenuManager({
                     Description
                     <textarea
                       rows={4}
-                      value={
-                        draft.description
-                      }
+                      maxLength={500}
+                      value={itemDraft.description}
                       onChange={(event) =>
-                        setDraft({
-                          ...draft,
-                          description:
-                            event.target.value,
-                        })
+                        setItemDraft((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }))
                       }
                       placeholder="House-crumbed chicken, Napoli, ham, mozzarella, chips and salad."
                     />
+
+                    <small>
+                      {itemDraft.description.length}/500 characters
+                    </small>
                   </label>
 
                   <label>
                     Image URL
                     <input
                       type="url"
-                      value={draft.imageUrl}
+                      value={itemDraft.imageUrl}
                       onChange={(event) =>
-                        setDraft({
-                          ...draft,
-                          imageUrl:
-                            event.target.value,
-                        })
+                        setItemDraft((current) => ({
+                          ...current,
+                          imageUrl: event.target.value,
+                        }))
                       }
                       placeholder="https://example.com/menu-item.jpg"
                     />
 
                     <small>
-                      Enter a direct JPG,
-                      PNG or WebP image URL.
+                      Enter a complete direct JPG, PNG or WebP URL.
                     </small>
                   </label>
 
                   <label>
                     Dietary tags
                     <input
-                      value={draft.dietary}
+                      value={itemDraft.dietary}
                       onChange={(event) =>
-                        setDraft({
-                          ...draft,
-                          dietary:
-                            event.target.value,
-                        })
+                        setItemDraft((current) => ({
+                          ...current,
+                          dietary: event.target.value,
+                        }))
                       }
                       placeholder="GF, V, VG"
                     />
+
+                    <small>Separate tags with commas.</small>
                   </label>
 
                   <div className="menu-toggle-grid">
                     <label className="menu-toggle-card">
                       <input
                         type="checkbox"
-                        checked={draft.active}
+                        checked={itemDraft.active}
                         onChange={(event) =>
-                          setDraft({
-                            ...draft,
-                            active:
-                              event.target
-                                .checked,
-                          })
+                          setItemDraft((current) => ({
+                            ...current,
+                            active: event.target.checked,
+                          }))
                         }
                       />
 
                       <span>
-                        <strong>
-                          Visible to customers
-                        </strong>
-
+                        <strong>Visible to customers</strong>
                         <small>
-                          Show this item on
-                          the ordering page.
+                          Show this item on the ordering page.
                         </small>
                       </span>
                     </label>
@@ -1250,27 +1090,19 @@ export default function MenuManager({
                     <label className="menu-toggle-card">
                       <input
                         type="checkbox"
-                        checked={
-                          draft.soldOut
-                        }
+                        checked={itemDraft.soldOut}
                         onChange={(event) =>
-                          setDraft({
-                            ...draft,
-                            soldOut:
-                              event.target
-                                .checked,
-                          })
+                          setItemDraft((current) => ({
+                            ...current,
+                            soldOut: event.target.checked,
+                          }))
                         }
                       />
 
                       <span>
-                        <strong>
-                          Mark as sold out
-                        </strong>
-
+                        <strong>Mark as sold out</strong>
                         <small>
-                          Keep it visible but
-                          prevent ordering.
+                          Keep it visible but prevent ordering.
                         </small>
                       </span>
                     </label>
@@ -1278,22 +1110,22 @@ export default function MenuManager({
 
                   <div className="menu-editor-actions">
                     <button
+                      type="submit"
                       className="button"
                       disabled={busy}
                     >
                       {busy
                         ? "Saving…"
-                        : draft.id
+                        : itemDraft.id
                           ? "Save changes"
                           : "Create menu item"}
                     </button>
 
                     <button
-                      className="button light"
                       type="button"
-                      onClick={() =>
-                        resetDraft()
-                      }
+                      className="button light"
+                      onClick={() => resetItemDraft()}
+                      disabled={busy}
                     >
                       Reset
                     </button>
@@ -1307,16 +1139,13 @@ export default function MenuManager({
 
                   <article className="menu-preview-card">
                     <ImagePreview
-                      src={draft.imageUrl}
-                      alt={
-                        draft.name ||
-                        "Menu item preview"
-                      }
+                      src={itemDraft.imageUrl}
+                      alt={itemDraft.name || "Menu item preview"}
                       title="Menu image"
                       subtitle="Add a valid image URL to preview this item."
                       className="menu-preview-image"
                     >
-                      {draft.soldOut && (
+                      {itemDraft.soldOut && (
                         <span className="status-chip sold-chip menu-preview-status">
                           SOLD OUT
                         </span>
@@ -1326,27 +1155,20 @@ export default function MenuManager({
                     <div className="menu-preview-copy">
                       <div>
                         <h3>
-                          {draft.name ||
-                            "Menu item name"}
+                          {itemDraft.name || "Menu item name"}
                         </h3>
 
                         <p>
-                          {draft.description ||
+                          {itemDraft.description ||
                             "Your menu item description will appear here."}
                         </p>
                       </div>
 
                       <div className="menu-preview-bottom">
                         <strong>
-                          {draft.price &&
-                          Number.isFinite(
-                            Number(
-                              draft.price,
-                            ),
-                          )
-                            ? `$${Number(
-                                draft.price,
-                              ).toFixed(2)}`
+                          {itemDraft.price &&
+                          Number.isFinite(Number(itemDraft.price))
+                            ? `$${Number(itemDraft.price).toFixed(2)}`
                             : "$0.00"}
                         </strong>
                       </div>
@@ -1359,178 +1181,123 @@ export default function MenuManager({
             <section className="menu-list-card menu-list-redesign">
               <div className="menu-list-toolbar">
                 <div>
-                  <div className="eyebrow">
-                    CURRENT MENU
-                  </div>
-
-                  <h2>
-                    {
-                      selectedCategoryName
-                    }
-                  </h2>
+                  <div className="eyebrow">CURRENT MENU</div>
+                  <h2>{selectedCategoryName}</h2>
                 </div>
 
                 <div className="menu-list-tools">
                   <input
                     value={search}
-                    onChange={(event) =>
-                      setSearch(
-                        event.target.value,
-                      )
-                    }
+                    onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search items..."
                   />
 
-                  <span>
-                    {visibleItems.length}{" "}
-                    items
-                  </span>
+                  <span>{visibleItems.length} items</span>
                 </div>
               </div>
 
               <div className="managed-item-grid">
-                {visibleItems.map(
-                  (item) => (
-                    <article
-                      className={`managed-menu-card ${
-                        !item.active
-                          ? "inactive"
-                          : ""
-                      }`}
-                      key={item.id}
+                {visibleItems.map((item) => (
+                  <article
+                    className={`managed-menu-card ${
+                      !item.active ? "inactive" : ""
+                    }`}
+                    key={item.id}
+                  >
+                    <ImagePreview
+                      src={item.imageUrl}
+                      alt={item.name}
+                      title="No image"
+                      subtitle="Edit this menu item to add an image."
+                      className="managed-menu-image"
                     >
-                      <ImagePreview
-                        src={item.imageUrl}
-                        alt={item.name}
-                        title="No image"
-                        subtitle="Edit this item to add a valid image URL."
-                        className="managed-menu-image"
-                      >
-                        <div className="managed-menu-badges">
-                          {item.soldOut && (
-                            <span className="status-chip sold-chip">
-                              SOLD OUT
-                            </span>
-                          )}
+                      <div className="managed-menu-badges">
+                        {item.soldOut && (
+                          <span className="status-chip sold-chip">
+                            SOLD OUT
+                          </span>
+                        )}
 
-                          {!item.active && (
-                            <span className="status-chip hidden-chip">
-                              HIDDEN
-                            </span>
-                          )}
-                        </div>
-                      </ImagePreview>
-
-                      <div className="managed-menu-content">
-                        <div className="managed-menu-title">
-                          <h3>
-                            {item.name}
-                          </h3>
-
-                          <strong>
-                            $
-                            {(
-                              item.priceCents /
-                              100
-                            ).toFixed(2)}
-                          </strong>
-                        </div>
-
-                        <p>
-                          {item.description ||
-                            "No description"}
-                        </p>
-
-                        {Array.isArray(
-                          item.dietary,
-                        ) &&
-                          item.dietary
-                            .length > 0 && (
-                            <div className="tags">
-                              {item.dietary.map(
-                                (tag) => (
-                                  <span
-                                    className="tag"
-                                    key={tag}
-                                  >
-                                    {tag}
-                                  </span>
-                                ),
-                              )}
-                            </div>
-                          )}
-
-                        <div className="managed-item-actions">
-                          <button
-                            type="button"
-                            className="button light"
-                            onClick={() =>
-                              editItem(item)
-                            }
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            className="button light"
-                            onClick={() =>
-                              quickUpdate(
-                                item,
-                                {
-                                  soldOut:
-                                    !item.soldOut,
-                                },
-                              )
-                            }
-                          >
-                            {item.soldOut
-                              ? "Back in stock"
-                              : "Sold out"}
-                          </button>
-
-                          <button
-                            type="button"
-                            className="button light"
-                            onClick={() =>
-                              quickUpdate(
-                                item,
-                                {
-                                  active:
-                                    !item.active,
-                                },
-                              )
-                            }
-                          >
-                            {item.active
-                              ? "Hide"
-                              : "Show"}
-                          </button>
-
-                          <button
-                            type="button"
-                            className="button danger"
-                            onClick={() =>
-                              deleteItem(item)
-                            }
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        {!item.active && (
+                          <span className="status-chip hidden-chip">
+                            HIDDEN
+                          </span>
+                        )}
                       </div>
-                    </article>
-                  ),
-                )}
+                    </ImagePreview>
+
+                    <div className="managed-menu-content">
+                      <div className="managed-menu-title">
+                        <h3>{item.name}</h3>
+
+                        <strong>
+                          ${(item.priceCents / 100).toFixed(2)}
+                        </strong>
+                      </div>
+
+                      <p>{item.description || "No description"}</p>
+
+                      {Array.isArray(item.dietary) &&
+                        item.dietary.length > 0 && (
+                          <div className="tags">
+                            {item.dietary.map((tag) => (
+                              <span className="tag" key={tag}>
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                      <div className="managed-item-actions">
+                        <button
+                          type="button"
+                          className="button light"
+                          onClick={() => editItem(item)}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="button light"
+                          onClick={() =>
+                            quickUpdateItem(item, {
+                              soldOut: !item.soldOut,
+                            })
+                          }
+                        >
+                          {item.soldOut ? "Back in stock" : "Sold out"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="button light"
+                          onClick={() =>
+                            quickUpdateItem(item, {
+                              active: !item.active,
+                            })
+                          }
+                        >
+                          {item.active ? "Hide" : "Show"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="button danger"
+                          onClick={() => deleteItem(item)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
 
                 {!visibleItems.length && (
                   <div className="empty-menu-state">
-                    <h3>
-                      No menu items found
-                    </h3>
-
+                    <h3>No menu items found</h3>
                     <p>
-                      Create a menu item or
-                      change your search.
+                      Create an item or change your search filter.
                     </p>
                   </div>
                 )}
@@ -1543,9 +1310,7 @@ export default function MenuManager({
           <section className="menu-editor-card menu-editor-redesign">
             <div className="menu-editor-heading">
               <div>
-                <div className="eyebrow">
-                  CHEF SPECIALS
-                </div>
+                <div className="eyebrow">CHEF SPECIALS</div>
 
                 <h2>
                   {specialDraft.id
@@ -1558,9 +1323,8 @@ export default function MenuManager({
                 <button
                   type="button"
                   className="button light"
-                  onClick={
-                    resetSpecialDraft
-                  }
+                  onClick={resetSpecialDraft}
+                  disabled={busy}
                 >
                   Add new instead
                 </button>
@@ -1576,18 +1340,15 @@ export default function MenuManager({
                   <label>
                     Special title
                     <input
-                      value={
-                        specialDraft.title
-                      }
+                      value={specialDraft.title}
                       onChange={(event) =>
-                        setSpecialDraft({
-                          ...specialDraft,
-                          title:
-                            event.target
-                              .value,
-                        })
+                        setSpecialDraft((current) => ({
+                          ...current,
+                          title: event.target.value,
+                        }))
                       }
-                      placeholder="Fillet Mignon"
+                      placeholder="Eye Fillet"
+                      maxLength={120}
                       required
                     />
                   </label>
@@ -1598,16 +1359,12 @@ export default function MenuManager({
                       type="number"
                       min="0"
                       step="0.01"
-                      value={
-                        specialDraft.price
-                      }
+                      value={specialDraft.price}
                       onChange={(event) =>
-                        setSpecialDraft({
-                          ...specialDraft,
-                          price:
-                            event.target
-                              .value,
-                        })
+                        setSpecialDraft((current) => ({
+                          ...current,
+                          price: event.target.value,
+                        }))
                       }
                       placeholder="42.00"
                       required
@@ -1619,54 +1376,50 @@ export default function MenuManager({
                   Description
                   <textarea
                     rows={4}
-                    value={
-                      specialDraft.description
-                    }
+                    maxLength={500}
+                    value={specialDraft.description}
                     onChange={(event) =>
-                      setSpecialDraft({
-                        ...specialDraft,
-                        description:
-                          event.target.value,
-                      })
+                      setSpecialDraft((current) => ({
+                        ...current,
+                        description: event.target.value,
+                      }))
                     }
-                    placeholder="Premium fillet mignon with potato gratin, seasonal greens and red wine jus."
+                    placeholder="Premium grilled eye fillet served with two golden potato croquettes on Kewpie mayo, seasonal mixed vegetables and rich gravy on the side."
                   />
+
+                  <small>
+                    {specialDraft.description.length}/500 characters
+                  </small>
                 </label>
 
                 <div className="menu-form-row">
                   <label>
                     Day or availability
                     <input
-                      value={
-                        specialDraft.day
-                      }
+                      value={specialDraft.day}
                       onChange={(event) =>
-                        setSpecialDraft({
-                          ...specialDraft,
-                          day:
-                            event.target
-                              .value,
-                        })
+                        setSpecialDraft((current) => ({
+                          ...current,
+                          day: event.target.value,
+                        }))
                       }
-                      placeholder="Friday"
+                      placeholder="Chef Special"
+                      maxLength={60}
                     />
                   </label>
 
                   <label>
                     Badge
                     <input
-                      value={
-                        specialDraft.badge
-                      }
+                      value={specialDraft.badge}
                       onChange={(event) =>
-                        setSpecialDraft({
-                          ...specialDraft,
-                          badge:
-                            event.target
-                              .value,
-                        })
+                        setSpecialDraft((current) => ({
+                          ...current,
+                          badge: event.target.value,
+                        }))
                       }
-                      placeholder="CHEF SPECIAL"
+                      placeholder="LIMITED TIME"
+                      maxLength={60}
                     />
                   </label>
                 </div>
@@ -1675,22 +1428,18 @@ export default function MenuManager({
                   Image URL
                   <input
                     type="url"
-                    value={
-                      specialDraft.imageUrl
-                    }
+                    value={specialDraft.imageUrl}
                     onChange={(event) =>
-                      setSpecialDraft({
-                        ...specialDraft,
-                        imageUrl:
-                          event.target.value,
-                      })
+                      setSpecialDraft((current) => ({
+                        ...current,
+                        imageUrl: event.target.value,
+                      }))
                     }
                     placeholder="https://example.com/special.jpg"
                   />
 
                   <small>
-                    Enter a direct JPG,
-                    PNG or WebP image URL.
+                    Enter a complete direct JPG, PNG or WebP URL.
                   </small>
                 </label>
 
@@ -1699,16 +1448,13 @@ export default function MenuManager({
                     Display order
                     <input
                       type="number"
-                      value={
-                        specialDraft.sortOrder
-                      }
+                      step="1"
+                      value={specialDraft.sortOrder}
                       onChange={(event) =>
-                        setSpecialDraft({
-                          ...specialDraft,
-                          sortOrder:
-                            event.target
-                              .value,
-                        })
+                        setSpecialDraft((current) => ({
+                          ...current,
+                          sortOrder: event.target.value,
+                        }))
                       }
                     />
                   </label>
@@ -1716,27 +1462,20 @@ export default function MenuManager({
                   <label className="menu-toggle-card">
                     <input
                       type="checkbox"
-                      checked={
-                        specialDraft.active
-                      }
+                      checked={specialDraft.active}
                       onChange={(event) =>
-                        setSpecialDraft({
-                          ...specialDraft,
-                          active:
-                            event.target
-                              .checked,
-                        })
+                        setSpecialDraft((current) => ({
+                          ...current,
+                          active: event.target.checked,
+                        }))
                       }
                     />
 
                     <span>
-                      <strong>
-                        Active special
-                      </strong>
-
+                      <strong>Active special</strong>
                       <small>
-                        Show on the homepage
-                        and ordering page.
+                        Show this special on the homepage and ordering
+                        page.
                       </small>
                     </span>
                   </label>
@@ -1744,6 +1483,7 @@ export default function MenuManager({
 
                 <div className="menu-editor-actions">
                   <button
+                    type="submit"
                     className="button"
                     disabled={busy}
                   >
@@ -1757,9 +1497,8 @@ export default function MenuManager({
                   <button
                     type="button"
                     className="button light"
-                    onClick={
-                      resetSpecialDraft
-                    }
+                    onClick={resetSpecialDraft}
+                    disabled={busy}
                   >
                     Reset
                   </button>
@@ -1773,33 +1512,27 @@ export default function MenuManager({
 
                 <article className="menu-preview-card special-preview-card">
                   <ImagePreview
-                    src={
-                      specialDraft.imageUrl
-                    }
+                    src={specialDraft.imageUrl}
                     alt={
-                      specialDraft.title ||
-                      "Chef special preview"
+                      specialDraft.title || "Chef special preview"
                     }
                     title="Special image"
                     subtitle="Add a valid image URL to preview this special."
                     className="menu-preview-image"
                   >
                     <span className="special-preview-badge">
-                      {specialDraft.badge ||
-                        "CHEF SPECIAL"}
+                      {specialDraft.badge || "CHEF SPECIAL"}
                     </span>
                   </ImagePreview>
 
                   <div className="menu-preview-copy">
                     <div>
                       <small>
-                        {specialDraft.day ||
-                          "AVAILABLE NOW"}
+                        {specialDraft.day || "AVAILABLE NOW"}
                       </small>
 
                       <h3>
-                        {specialDraft.title ||
-                          "Chef special"}
+                        {specialDraft.title || "Chef special"}
                       </h3>
 
                       <p>
@@ -1811,11 +1544,7 @@ export default function MenuManager({
                     <div className="menu-preview-bottom">
                       <strong>
                         {specialDraft.price &&
-                        Number.isFinite(
-                          Number(
-                            specialDraft.price,
-                          ),
-                        )
+                        Number.isFinite(Number(specialDraft.price))
                           ? `$${Number(
                               specialDraft.price,
                             ).toFixed(2)}`
@@ -1831,149 +1560,96 @@ export default function MenuManager({
           <section className="menu-list-card menu-list-redesign">
             <div className="menu-list-toolbar">
               <div>
-                <div className="eyebrow">
-                  CURRENT SPECIALS
-                </div>
-
-                <h2>
-                  Chef specials
-                </h2>
+                <div className="eyebrow">CURRENT SPECIALS</div>
+                <h2>Chef specials</h2>
               </div>
 
-              <span>
-                {sortedSpecials.length}{" "}
-                specials
-              </span>
+              <span>{sortedSpecials.length} specials</span>
             </div>
 
             <div className="managed-item-grid">
-              {sortedSpecials.map(
-                (special) => (
-                  <article
-                    className={`managed-menu-card ${
-                      !special.active
-                        ? "inactive"
-                        : ""
-                    }`}
-                    key={special.id}
+              {sortedSpecials.map((special) => (
+                <article
+                  className={`managed-menu-card ${
+                    !special.active ? "inactive" : ""
+                  }`}
+                  key={special.id}
+                >
+                  <ImagePreview
+                    src={special.imageUrl}
+                    alt={special.title}
+                    title="No special image"
+                    subtitle="Edit this special to add an image."
+                    className="managed-menu-image"
                   >
-                    <ImagePreview
-                      src={
-                        special.imageUrl
-                      }
-                      alt={special.title}
-                      title="No special image"
-                      subtitle="Edit this special to add a valid image URL."
-                      className="managed-menu-image"
-                    >
-                      <div className="managed-menu-badges">
-                        <span className="status-chip">
-                          {special.badge ||
-                            "CHEF SPECIAL"}
+                    <div className="managed-menu-badges">
+                      <span className="status-chip">
+                        {special.badge || "CHEF SPECIAL"}
+                      </span>
+
+                      {!special.active && (
+                        <span className="status-chip hidden-chip">
+                          HIDDEN
                         </span>
-
-                        {!special.active && (
-                          <span className="status-chip hidden-chip">
-                            HIDDEN
-                          </span>
-                        )}
-                      </div>
-                    </ImagePreview>
-
-                    <div className="managed-menu-content">
-                      <div className="managed-menu-title">
-                        <h3>
-                          {special.title}
-                        </h3>
-
-                        <strong>
-                          {special.price ===
-                          null
-                            ? "—"
-                            : `$${Number(
-                                special.price,
-                              ).toFixed(2)}`}
-                        </strong>
-                      </div>
-
-                      <p>
-                        {special.description ||
-                          "No description"}
-                      </p>
-
-                      <div className="managed-item-meta">
-                        {special.day && (
-                          <span>
-                            {special.day}
-                          </span>
-                        )}
-
-                        <span>
-                          Order:{" "}
-                          {
-                            special.sortOrder
-                          }
-                        </span>
-                      </div>
-
-                      <div className="managed-item-actions">
-                        <button
-                          type="button"
-                          className="button light"
-                          onClick={() =>
-                            editSpecial(
-                              special,
-                            )
-                          }
-                        >
-                          Edit
-                        </button>
-
-                        <button
-                          type="button"
-                          className="button light"
-                          onClick={() =>
-                            quickUpdateSpecial(
-                              special,
-                              {
-                                active:
-                                  !special.active,
-                              },
-                            )
-                          }
-                        >
-                          {special.active
-                            ? "Hide"
-                            : "Show"}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="button danger"
-                          onClick={() =>
-                            deleteSpecial(
-                              special,
-                            )
-                          }
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      )}
                     </div>
-                  </article>
-                ),
-              )}
+                  </ImagePreview>
+
+                  <div className="managed-menu-content">
+                    <div className="managed-menu-title">
+                      <h3>{special.title}</h3>
+
+                      <strong>
+                        {special.price === null
+                          ? "—"
+                          : `$${Number(special.price).toFixed(2)}`}
+                      </strong>
+                    </div>
+
+                    <p>{special.description || "No description"}</p>
+
+                    <div className="managed-item-meta">
+                      {special.day && <span>{special.day}</span>}
+                      <span>Order: {special.sortOrder}</span>
+                    </div>
+
+                    <div className="managed-item-actions">
+                      <button
+                        type="button"
+                        className="button light"
+                        onClick={() => editSpecial(special)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className="button light"
+                        onClick={() =>
+                          quickUpdateSpecial(special, {
+                            active: !special.active,
+                          })
+                        }
+                      >
+                        {special.active ? "Hide" : "Show"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="button danger"
+                        onClick={() => deleteSpecial(special)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
 
               {!sortedSpecials.length && (
                 <div className="empty-menu-state">
-                  <h3>
-                    No chef specials yet
-                  </h3>
-
-                  <p>
-                    Create your first chef
-                    special above.
-                  </p>
+                  <h3>No chef specials yet</h3>
+                  <p>Create your first chef special above.</p>
                 </div>
               )}
             </div>
