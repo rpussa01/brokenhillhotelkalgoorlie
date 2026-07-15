@@ -19,9 +19,17 @@ export const menuItemSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(2).max(100),
   description: z.string().max(300),
+
+  imageUrl: z
+    .string()
+    .trim()
+    .url("Enter a valid image URL")
+    .nullable()
+    .optional(),
+
   priceCents: z.number().int().min(0),
   active: z.boolean(),
   soldOut: z.boolean(),
   dietary: z.array(z.string()).default([]),
-  sortOrder: z.number().int().default(0)
+  sortOrder: z.number().int().default(0),
 });

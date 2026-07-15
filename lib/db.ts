@@ -6,22 +6,57 @@ export const defaultSettings = {
   phone: "(08) 9093 0306",
   address: "21 Forrest Street, South Boulder WA 6432",
   isOrderingOpen: true,
-  pickupMinutes: 30
+  pickupMinutes: 30,
 };
 
 export async function getSettings() {
   return prisma.settings.upsert({
-    where: { id: "main" },
+    where: {
+      id: "main",
+    },
     update: {},
-    create: defaultSettings
+    create: defaultSettings,
   });
 }
 
 export async function getPublicMenu() {
   const [settings, categories, items] = await Promise.all([
     getSettings(),
-    prisma.category.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
-    prisma.menuItem.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] })
+
+    prisma.category.findMany({
+      orderBy: [
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
+    }),
+
+    prisma.menuItem.findMany({
+      orderBy: [
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
+    }),
   ]);
-  return { settings, categories, items };
+
+  return {
+    settings,
+    categories,
+    items,
+  };
+}
+
+export async function getSpecials() {
+  return prisma.special.findMany({
+    where: {
+      active: true,
+    },
+    orderBy: [
+      {
+        sortOrder: "asc",
+      },
+      {
+        createdAt: "desc",
+      },
+    ],
+  });
 }

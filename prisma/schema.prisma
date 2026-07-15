@@ -51,22 +51,22 @@ model Category {
 }
 
 model MenuItem {
-  id          String      @id @default(cuid())
-  categoryId  String
-  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  id          String   @id @default(cuid())
   name        String
-  description String      @default("")
+  description String?
   priceCents  Int
-  active      Boolean     @default(true)
-  soldOut     Boolean     @default(false)
-  dietary     String[]    @default([])
-  sortOrder   Int         @default(0)
-  orderLines  OrderLine[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  imageUrl    String?
+  dietary     String[]
+  soldOut     Boolean  @default(false)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
 
-  @@index([categoryId, sortOrder])
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+
+  orderLines  OrderLine[]
 }
+  
 
 model Order {
   id              String        @id @default(cuid())
@@ -108,4 +108,17 @@ model OrderLine {
 model Counter {
   id    String @id
   value Int    @default(0)
+}
+model Special {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  price       Decimal?
+  day         String?
+  badge       String?
+  imageUrl    String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

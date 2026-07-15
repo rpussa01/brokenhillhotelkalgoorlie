@@ -1,12 +1,15 @@
-import { getSettings } from "@/lib/db";
+import { getSettings, getSpecials } from "@/lib/db";
 import SiteHeader from "@/components/SiteHeader";
-
+import SpecialsSlider from "@/components/SpecialsSlider";
 
 export const dynamic = "force-dynamic";
 
 
 export default async function Home() {
-  const settings = await getSettings();
+  const [settings, specials] = await Promise.all([
+  getSettings(),
+  getSpecials(),
+]);
 
   return (
     <>
@@ -118,6 +121,20 @@ export default async function Home() {
             </article>
           </div>
         </section>
+        <SpecialsSlider
+  specials={specials.map((special) => ({
+    id: special.id,
+    title: special.title,
+    description: special.description,
+    price:
+      special.price === null
+        ? null
+        : Number(special.price),
+    day: special.day,
+    badge: special.badge,
+    imageUrl: special.imageUrl,
+  }))}
+/>
 
         <section className="home-section stay-section" id="stay">
           <div className="stay-photo"><span>ROOMS AVAILABLE</span></div>
