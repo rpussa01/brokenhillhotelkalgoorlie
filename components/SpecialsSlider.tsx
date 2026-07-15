@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 type Special = {
   id: string;
   title: string;
   description: string | null;
-  price: number | string | null;
+  price: number | null;
   day: string | null;
   badge: string | null;
   imageUrl: string | null;
@@ -16,93 +16,63 @@ type SpecialsSliderProps = {
   specials: Special[];
 };
 
+const money = (price: number) =>
+  new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(price);
+
 export default function SpecialsSlider({
   specials,
 }: SpecialsSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  function scrollToIndex(index: number) {
-    const track = trackRef.current;
-
-    if (!track || specials.length === 0) {
-      return;
-    }
+  function goTo(index: number) {
+    if (!specials.length) return;
 
     const safeIndex =
       (index + specials.length) % specials.length;
 
-    const slide = track.children[safeIndex] as HTMLElement | undefined;
+    const track = trackRef.current;
+    const slide = track?.children[safeIndex] as HTMLElement | undefined;
 
     slide?.scrollIntoView({
       behavior: "smooth",
-      inline: "start",
       block: "nearest",
+      inline: "start",
     });
 
     setActiveIndex(safeIndex);
   }
 
-  function goPrevious() {
-    scrollToIndex(activeIndex - 1);
+  function updateActiveSlide() {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const slides = Array.from(track.children) as HTMLElement[];
+    const trackLeft = track.getBoundingClientRect().left;
+
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    slides.forEach((slide, index) => {
+      const distance = Math.abs(
+        slide.getBoundingClientRect().left - trackLeft,
+      );
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+
+    setActiveIndex(nearestIndex);
   }
 
-  function goNext() {
-    scrollToIndex(activeIndex + 1);
-  }
-
-  useEffect(() => {
-    if (specials.length <= 1) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setActiveIndex((currentIndex) => {
-        const nextIndex =
-          (currentIndex + 1) % specials.length;
-
-        const track = trackRef.current;
-        const slide = track?.children[nextIndex] as
-          | HTMLElement
-          | undefined;
-
-        slide?.scrollIntoView({
-          behavior: "smooth",
-          inline: "start",
-          block: "nearest",
-        });
-
-        return nextIndex;
-      });
-    }, 6000);
-
-    return () => window.clearInterval(timer);
-  }, [specials.length]);
-
-  if (specials.length === 0) {
-  return (
-    <section className="home-section specials-slider-section" id="specials">
-      <div className="specials-slider-heading">
-        <div>
-          <div className="section-kicker">CURRENT SPECIALS</div>
-          <h2>
-            Something good
-            <br />
-            is always on.
-          </h2>
-        </div>
-      </div>
-
-      <div className="specials-empty">
-        <h3>No specials available right now.</h3>
-        <p>Check back soon or call the hotel for today&apos;s offers.</p>
-        <a className="button light" href="tel:+61890930306">
-          Call the hotel
-        </a>
-      </div>
-    </section>
-  );
-}
+  if (!specials.length) return null;
 
   return (
     <section
@@ -111,10 +81,7 @@ export default function SpecialsSlider({
     >
       <div className="specials-slider-heading">
         <div>
-          <div className="section-kicker">
-            CURRENT SPECIALS
-          </div>
-
+          <div className="section-kicker">CHEF&apos;S SPECIALS</div>
           <h2>
             Something good
             <br />
@@ -126,7 +93,7 @@ export default function SpecialsSlider({
           <button
             type="button"
             className="special-slider-arrow"
-            onClick={goPrevious}
+            onClick={() => goTo(activeIndex - 1)}
             aria-label="Previous special"
           >
             ←
@@ -135,7 +102,7 @@ export default function SpecialsSlider({
           <button
             type="button"
             className="special-slider-arrow"
-            onClick={goNext}
+            onClick={() => goTo(activeIndex + 1)}
             aria-label="Next special"
           >
             →
@@ -146,11 +113,12 @@ export default function SpecialsSlider({
       <div
         ref={trackRef}
         className="specials-slider-track"
+        onScroll={updateActiveSlide}
       >
         {specials.map((special, index) => (
           <article
-            key={special.id}
             className="special-slide"
+            key={special.id}
             style={{
               backgroundImage: special.imageUrl
                 ? `url("${special.imageUrl}")`
@@ -161,16 +129,16 @@ export default function SpecialsSlider({
 
             <div className="special-slide-content">
               <div className="special-slide-topline">
-                <div>
-                  {special.day && (
-                    <span className="special-slide-day">
-                      {special.day.toUpperCase()}
+                <div className="special-slide-labels">
+                  {special.badge && (
+                    <span className="special-slide-badge">
+                      {special.badge}
                     </span>
                   )}
 
-                  {special.badge && (
-                    <span className="special-slide-badge">
-                      {special.badge.toUpperCase()}
+                  {special.day && (
+                    <span className="special-slide-day">
+                      {special.day}
                     </span>
                   )}
                 </div>
@@ -191,15 +159,10 @@ export default function SpecialsSlider({
 
               <div className="special-slide-bottom">
                 {special.price !== null && (
-                  <strong>
-                    ${Number(special.price).toFixed(2)}
-                  </strong>
+                  <strong>{money(special.price)}</strong>
                 )}
 
-                <a
-                  className="button light"
-                  href="/order"
-                >
+                <a className="button light" href="/order">
                   Order this special
                 </a>
               </div>
@@ -208,19 +171,19 @@ export default function SpecialsSlider({
         ))}
       </div>
 
-      <div className="special-slider-dots">
-        {specials.map((special, index) => (
-          <button
-            key={special.id}
-            type="button"
-            className={
-              index === activeIndex ? "active" : ""
-            }
-            aria-label={`View special ${index + 1}`}
-            onClick={() => scrollToIndex(index)}
-          />
-        ))}
-      </div>
+      {specials.length > 1 && (
+        <div className="special-slider-dots">
+          {specials.map((special, index) => (
+            <button
+              type="button"
+              key={special.id}
+              className={index === activeIndex ? "active" : ""}
+              onClick={() => goTo(index)}
+              aria-label={`View special ${index + 1}`}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
