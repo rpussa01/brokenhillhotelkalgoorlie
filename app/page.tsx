@@ -7,7 +7,10 @@ export const dynamic = "force-dynamic";
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1572116469696-31de0f17cc34?auto=format&fit=crop&w=2200&q=88";
 
-const BAR_IMAGE =
+const EAT_CARD_IMAGE =
+  "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1400&q=85";
+
+const BAR_CARD_IMAGE =
   "https://www.beerdrawingservices.com.au/wp-content/uploads/2020/08/16-min-719x1024.jpg";
 
 function money(priceCents: number) {
@@ -58,56 +61,54 @@ export default async function Home() {
     "bar",
   ];
 
-  const drinkItems = activeItems.filter((item) => {
-    const categoryName = categoryNameById.get(item.categoryId) ?? "";
-    return drinkKeywords.some((keyword) =>
-      categoryName.includes(keyword),
-    );
-  });
-
   const foodItems = activeItems.filter((item) => {
-    const categoryName = categoryNameById.get(item.categoryId) ?? "";
+    const categoryName =
+      categoryNameById.get(item.categoryId) ?? "";
+
     return !drinkKeywords.some((keyword) =>
       categoryName.includes(keyword),
     );
   });
 
-  const featuredFood =
-    foodItems.find((item) => item.imageUrl && !item.soldOut) ??
-    foodItems.find((item) => item.imageUrl) ??
-    foodItems[0] ??
-    null;
-
-  const featuredDrink =
-    drinkItems.find((item) => item.imageUrl && !item.soldOut) ??
-    drinkItems.find((item) => item.imageUrl) ??
-    drinkItems[0] ??
-    null;
-
   const favouriteItems = foodItems
-    .filter((item) => !item.soldOut && item.imageUrl)
+    .filter((item) => !item.soldOut && Boolean(item.imageUrl))
     .slice(0, 3);
 
-  const phoneHref = `tel:${settings.phone.replace(/[^+\d]/g, "")}`;
+  const phoneHref = `tel:${settings.phone.replace(
+    /[^+\d]/g,
+    "",
+  )}`;
+
+  const mapsHref =
+    "https://www.google.com/maps/search/?api=1&query=" +
+    encodeURIComponent(settings.address);
 
   return (
     <>
       <div className="announcement">
-        <span>Open daily • Cold beer • Great food • Local hospitality</span>
+        <span>
+          Open daily • Cold beer • Great food • Local hospitality
+        </span>
+
         <a href="/order">Order food online →</a>
       </div>
 
       <SiteHeader />
 
       <main>
+        {/* Static main hero */}
         <section
           className="home-hero"
-          style={{ backgroundImage: `url("${HERO_IMAGE}")` }}
+          style={{
+            backgroundImage: `url("${HERO_IMAGE}")`,
+          }}
         >
           <div className="home-overlay" />
 
           <div className="home-hero-content">
-            <div className="eyebrow">THE LOCAL SINCE 1899</div>
+            <div className="eyebrow">
+              THE LOCAL SINCE 1899
+            </div>
 
             <h1>
               Good food.
@@ -139,19 +140,29 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* Database-driven ticker */}
         {activeCategories.length > 0 && (
           <section className="home-ticker">
             {activeCategories.map((category, index) => (
-              <span className="home-ticker-item" key={category.id}>
+              <span
+                className="home-ticker-item"
+                key={category.id}
+              >
                 <span>{category.name.toUpperCase()}</span>
-                {index < activeCategories.length - 1 && <b>✦</b>}
+
+                {index < activeCategories.length - 1 && (
+                  <b>✦</b>
+                )}
               </span>
             ))}
           </section>
         )}
 
+        {/* Static introduction */}
         <section className="home-section intro-section">
-          <div className="section-kicker">WELCOME TO THE BROKIE</div>
+          <div className="section-kicker">
+            WELCOME TO THE BROKIE
+          </div>
 
           <div className="intro-grid">
             <h2>
@@ -175,41 +186,42 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="home-section home-feature-grid" id="eat">
-          {featuredFood && (
-            <article
-              className="home-feature-card"
-              style={
-                featuredFood.imageUrl
-                  ? {
-                      backgroundImage: `url("${featuredFood.imageUrl}")`,
-                    }
-                  : undefined
-              }
-            >
-              <div>
-                <div className="eyebrow">EAT</div>
+        {/* Both cards are fully static */}
+        <section
+          className="home-section home-feature-grid"
+          id="eat"
+        >
+          <article
+            className="home-feature-card food-card"
+            style={{
+              backgroundImage: `url("${EAT_CARD_IMAGE}")`,
+            }}
+          >
+            <div>
+              <div className="eyebrow">EAT</div>
 
-                <h3>{featuredFood.name}</h3>
+              <h3>
+                Big flavour.
+                <br />
+                Proper portions.
+              </h3>
 
-                {featuredFood.description && (
-                  <p>{featuredFood.description}</p>
-                )}
+              <p>
+                Pub favourites, steaks, burgers and rotating chef
+                specials, cooked fresh and made to satisfy.
+              </p>
 
-                <div className="feature-card-bottom">
-                  <strong>{money(featuredFood.priceCents)}</strong>
-
-                  <a className="button light" href="/order">
-                    View menu and order
-                  </a>
-                </div>
-              </div>
-            </article>
-          )}
+              <a className="button light" href="/order">
+                View menu and order
+              </a>
+            </div>
+          </article>
 
           <article
             className="home-feature-card bar-card"
-            style={{ backgroundImage: `url("${BAR_IMAGE}")` }}
+            style={{
+              backgroundImage: `url("${BAR_CARD_IMAGE}")`,
+            }}
           >
             <div>
               <div className="eyebrow">DRINK</div>
@@ -221,23 +233,18 @@ export default async function Home() {
               </h3>
 
               <p>
-                Cold taps, classic spirits and easygoing service from
-                open until late.
+                Cold taps, classic spirits and easygoing service
+                from open until late.
               </p>
 
-              <div className="feature-card-bottom">
-                {featuredDrink && (
-                  <strong>{money(featuredDrink.priceCents)}</strong>
-                )}
-
-                <a className="button light" href="#visit">
-                  See venue details
-                </a>
-              </div>
+              <a className="button light" href="#visit">
+                See venue details
+              </a>
             </div>
           </article>
         </section>
 
+        {/* Database-driven specials */}
         {specials.length > 0 && (
           <SpecialsSlider
             specials={specials.map((special) => ({
@@ -255,11 +262,15 @@ export default async function Home() {
           />
         )}
 
+        {/* Database-driven favourites */}
         {favouriteItems.length > 0 && (
           <section className="home-section favourites-section">
             <div className="home-section-head">
               <div>
-                <div className="section-kicker">BROKIE FAVOURITES</div>
+                <div className="section-kicker">
+                  BROKIE FAVOURITES
+                </div>
+
                 <h2>What are you hungry for?</h2>
               </div>
 
@@ -270,7 +281,10 @@ export default async function Home() {
 
             <div className="favourite-grid">
               {favouriteItems.map((item) => (
-                <article className="favourite-card" key={item.id}>
+                <article
+                  className="favourite-card"
+                  key={item.id}
+                >
                   <div
                     className="favourite-image"
                     style={{
@@ -282,13 +296,18 @@ export default async function Home() {
                     <div>
                       <h3>{item.name}</h3>
 
-                      {item.description && <p>{item.description}</p>}
+                      {item.description && (
+                        <p>{item.description}</p>
+                      )}
 
                       {Array.isArray(item.dietary) &&
                         item.dietary.length > 0 && (
                           <div className="tags">
                             {item.dietary.map((tag) => (
-                              <span className="tag" key={tag}>
+                              <span
+                                className="tag"
+                                key={tag}
+                              >
                                 {tag}
                               </span>
                             ))}
@@ -296,7 +315,9 @@ export default async function Home() {
                         )}
                     </div>
 
-                    <strong>{money(item.priceCents)}</strong>
+                    <strong>
+                      {money(item.priceCents)}
+                    </strong>
                   </div>
                 </article>
               ))}
@@ -304,15 +325,23 @@ export default async function Home() {
           </section>
         )}
 
-        <section className="home-section stay-section" id="stay">
+        {/* Accommodation */}
+        <section
+          className="home-section stay-section"
+          id="stay"
+        >
           <div className="stay-photo">
             <span>ROOMS AVAILABLE</span>
           </div>
 
           <div className="stay-copy">
-            <div className="section-kicker">STAY AT THE BROKIE</div>
+            <div className="section-kicker">
+              STAY AT THE BROKIE
+            </div>
 
-            <h2>Simple, comfortable, convenient.</h2>
+            <h2>
+              Simple, comfortable, convenient.
+            </h2>
 
             <p>
               Whether you are in town for work, passing through the
@@ -333,10 +362,18 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="home-section whats-on-section" id="whats-on">
-          <div className="section-kicker">WHAT&apos;S ON</div>
+        {/* What's on */}
+        <section
+          className="home-section whats-on-section"
+          id="whats-on"
+        >
+          <div className="section-kicker">
+            WHAT&apos;S ON
+          </div>
 
-          <h2>There is always a reason to drop in.</h2>
+          <h2>
+            There is always a reason to drop in.
+          </h2>
 
           <div className="event-list">
             <article>
@@ -348,7 +385,8 @@ export default async function Home() {
               <div>
                 <h3>Midweek Meal Deal</h3>
                 <p>
-                  A rotating pub favourite at a locals-friendly price.
+                  A rotating pub favourite at a locals-friendly
+                  price.
                 </p>
               </div>
 
@@ -380,7 +418,9 @@ export default async function Home() {
 
               <div>
                 <h3>Big Games on Screen</h3>
-                <p>Catch major fixtures live in the public bar.</p>
+                <p>
+                  Catch major fixtures live in the public bar.
+                </p>
               </div>
 
               <a href={phoneHref}>Check schedule →</a>
@@ -388,13 +428,20 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* Order banner */}
         <section className="home-order-banner">
           <div>
-            <div className="eyebrow dark-text">SKIP THE QUEUE</div>
-            <h2>Dinner sorted in a few taps.</h2>
+            <div className="eyebrow dark-text">
+              SKIP THE QUEUE
+            </div>
+
+            <h2>
+              Dinner sorted in a few taps.
+            </h2>
+
             <p>
-              Browse the menu, choose your pickup time and place your
-              order directly with the hotel.
+              Browse the menu, choose your pickup time and place
+              your order directly with the hotel.
             </p>
           </div>
 
@@ -403,9 +450,15 @@ export default async function Home() {
           </a>
         </section>
 
-        <section className="home-section visit-section" id="visit">
+        {/* Visit */}
+        <section
+          className="home-section visit-section"
+          id="visit"
+        >
           <div>
-            <div className="section-kicker">FIND US</div>
+            <div className="section-kicker">
+              FIND US
+            </div>
 
             <h2>
               Better at
@@ -422,7 +475,9 @@ export default async function Home() {
               <div>
                 <small>PHONE</small>
                 <p>
-                  <a href={phoneHref}>{settings.phone}</a>
+                  <a href={phoneHref}>
+                    {settings.phone}
+                  </a>
                 </p>
               </div>
 
@@ -455,9 +510,7 @@ export default async function Home() {
               className="button"
               target="_blank"
               rel="noreferrer"
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                settings.address,
-              )}`}
+              href={mapsHref}
             >
               Get directions
             </a>
@@ -480,7 +533,9 @@ export default async function Home() {
 
           <span>
             {settings.venueName}
-            <small>YOUR LOCAL SINCE 1899</small>
+            <small>
+              YOUR LOCAL SINCE 1899
+            </small>
           </span>
         </div>
 
@@ -493,8 +548,8 @@ export default async function Home() {
         </div>
 
         <p>
-          © {new Date().getFullYear()} {settings.venueName} • Drink
-          responsibly • 18+
+          © {new Date().getFullYear()} {settings.venueName} •
+          Drink responsibly • 18+
         </p>
       </footer>
     </>
