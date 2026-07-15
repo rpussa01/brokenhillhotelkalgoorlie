@@ -2134,7 +2134,6 @@ img {
   }
 
   .mobile-nav > a:not(.button)::after {
-    content: "â†’";
     color: var(--rust);
     font-size: 16px;
     font-weight: 900;
