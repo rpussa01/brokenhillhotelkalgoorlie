@@ -13,13 +13,22 @@ const EAT_CARD_IMAGE =
 const BAR_CARD_IMAGE =
   "https://www.beerdrawingservices.com.au/wp-content/uploads/2020/08/16-min-719x1024.jpg";
 
+const BOOKING_IMAGE =
+  "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1600&q=88";
 
-  const GIFT_CARD_URL =
-  process.env.NEXT_PUBLIC_GIFT_CARD_URL ?? "";
+const GIFT_CARD_URL =
+  process.env.NEXT_PUBLIC_GIFT_CARD_URL?.trim() ?? "";
 
 const GIFT_CARDS_AVAILABLE =
   process.env.NEXT_PUBLIC_GIFT_CARDS_ENABLED === "true" &&
   Boolean(GIFT_CARD_URL);
+
+const BOOKING_URL =
+  process.env.NEXT_PUBLIC_BOOKING_URL?.trim() ?? "";
+
+const BOOKINGS_AVAILABLE =
+  process.env.NEXT_PUBLIC_BOOKINGS_ENABLED === "true" &&
+  Boolean(BOOKING_URL);
 
 function money(priceCents: number) {
   return new Intl.NumberFormat("en-AU", {
@@ -101,8 +110,12 @@ export default async function Home() {
         </span>
 
         <div className="announcement-actions">
+          <a href="#book">
+            Book a table
+          </a>
+
           <a href="#gift-cards">
-            Buy a gift card
+            Gift cards
           </a>
 
           <a href="/order">
@@ -145,6 +158,13 @@ export default async function Home() {
             <div className="home-actions">
               <a
                 className="button"
+                href="#book"
+              >
+                Book a table
+              </a>
+
+              <a
+                className="button ghost"
                 href="/order"
               >
                 Order food
@@ -155,13 +175,6 @@ export default async function Home() {
                 href="#eat"
               >
                 Explore the menu
-              </a>
-
-              <a
-                className="button ghost"
-                href="#gift-cards"
-              >
-                Gift cards
               </a>
             </div>
           </div>
@@ -293,6 +306,197 @@ export default async function Home() {
           </article>
         </section>
 
+        {/* Book a table */}
+        <section
+          className="home-section booking-section"
+          id="book"
+        >
+          <div
+            className="booking-visual"
+            style={{
+              backgroundImage: `url("${BOOKING_IMAGE}")`,
+            }}
+          >
+            <div className="booking-visual-overlay" />
+
+            <div className="booking-visual-copy">
+              <span className="booking-pill">
+                TABLE RESERVATIONS
+              </span>
+
+              <h2>
+                Your table is
+                <br />
+                waiting.
+              </h2>
+
+              <p>
+                Lunch, dinner, family gatherings or a relaxed night
+                at the local. Reserve your table in a few quick steps.
+              </p>
+
+              <div className="booking-highlights">
+                <span>
+                  <b>01</b>
+                  Choose a date
+                </span>
+
+                <span>
+                  <b>02</b>
+                  Select your time
+                </span>
+
+                <span>
+                  <b>03</b>
+                  Confirm instantly
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="booking-panel">
+            <div className="section-kicker">
+              BOOK A TABLE
+            </div>
+
+            <h3>
+              Make your next visit easy.
+            </h3>
+
+            <p>
+              Reserve online for lunch, dinner or a casual catch-up.
+              For large groups or special requests, call the hotel
+              directly.
+            </p>
+
+            <div className="booking-details-grid">
+              <div>
+                <small>LOCATION</small>
+                <strong>
+                  Broken Hill Hotel
+                </strong>
+                <span>
+                  {settings.address}
+                </span>
+              </div>
+
+              <div>
+                <small>PHONE BOOKINGS</small>
+                <strong>
+                  {settings.phone}
+                </strong>
+                <span>
+                  Large groups welcome
+                </span>
+              </div>
+            </div>
+
+            {BOOKINGS_AVAILABLE ? (
+              <>
+                <a
+                  className="button booking-primary-button"
+                  href={BOOKING_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Find a table
+                  <span aria-hidden="true">
+                    ↗
+                  </span>
+                </a>
+
+                <a
+                  className="booking-call-link"
+                  href={phoneHref}
+                >
+                  Prefer to call? {settings.phone}
+                </a>
+              </>
+            ) : (
+              <div className="booking-coming-soon">
+                <span>
+                  ONLINE BOOKINGS COMING SOON
+                </span>
+
+                <p>
+                  Online reservations are being prepared. Call us
+                  now and our team will arrange your table.
+                </p>
+
+                <a
+                  className="button booking-primary-button"
+                  href={phoneHref}
+                >
+                  Call to reserve
+                </a>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Optional embedded booking widget */}
+        {BOOKINGS_AVAILABLE && (
+          <section className="home-section booking-widget-section">
+            <div className="booking-widget-heading">
+              <div>
+                <div className="section-kicker">
+                  LIVE AVAILABILITY
+                </div>
+
+                <h2>
+                  Reserve without leaving the site.
+                </h2>
+              </div>
+
+              <a
+                className="text-link"
+                href={BOOKING_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open booking page ↗
+              </a>
+            </div>
+
+            <div className="booking-frame-wrapper">
+              <iframe
+                className="booking-frame"
+                src={BOOKING_URL}
+                title="Book a table at Broken Hill Hotel"
+                loading="lazy"
+              />
+            </div>
+
+            <div className="booking-mobile-fallback">
+              <div>
+                <span className="booking-mobile-icon">
+                  ◷
+                </span>
+
+                <div>
+                  <h3>
+                    Book in a few taps.
+                  </h3>
+
+                  <p>
+                    Check live availability and confirm your table
+                    securely.
+                  </p>
+                </div>
+              </div>
+
+              <a
+                className="button dark"
+                href={BOOKING_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Book now
+              </a>
+            </div>
+          </section>
+        )}
+
         {/* Specials */}
         {specials.length > 0 && (
           <SpecialsSlider
@@ -418,7 +622,7 @@ export default async function Home() {
 
             <p>
               Whether you are in town for work, passing through the
-              Goldfields, or staying for the weekend, settle into
+              Goldfields or staying for the weekend, settle into
               practical accommodation close to everything you need.
             </p>
 
@@ -523,7 +727,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Online ordering banner */}
+        {/* Order banner */}
         <section className="home-order-banner">
           <div>
             <div className="eyebrow dark-text">
@@ -549,119 +753,138 @@ export default async function Home() {
         </section>
 
         {/* Gift cards */}
-       {/* Gift cards */}
-<section
-  className="home-section gift-card-section"
-  id="gift-cards"
->
-  <div className="gift-card-heading">
-    <div>
-      <div className="section-kicker">
-        BROKEN HILL HOTEL GIFT CARDS
-      </div>
-
-      <h2>
-        Give the gift of
-        <br />
-        good times.
-      </h2>
-    </div>
-
-    <div className="gift-card-intro">
-      {GIFT_CARDS_AVAILABLE ? (
-        <>
-          <p>
-            Treat someone special to great food, cold drinks and a
-            memorable visit to the Broken Hill Hotel.
-          </p>
-
-          <div className="gift-card-benefits">
-            <span>✓ Choose your amount</span>
-            <span>✓ Add a personal message</span>
-            <span>✓ Send instantly by email</span>
-          </div>
-
-          <a
-            className="text-link"
-            href={GIFT_CARD_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open gift cards in a new window ↗
-          </a>
-        </>
-      ) : (
-        <p>
-          Digital gift cards are currently being prepared and will
-          be available soon.
-        </p>
-      )}
-    </div>
-  </div>
-
-  {GIFT_CARDS_AVAILABLE ? (
-    <>
-      <div className="gift-card-frame-wrapper">
-        <iframe
-          className="gift-card-frame"
-          src={GIFT_CARD_URL}
-          title="Broken Hill Hotel Gift Cards"
-          loading="lazy"
-          allow="payment"
-        />
-      </div>
-
-      <div className="gift-card-mobile-cta">
-        <div>
-          <span className="gift-card-icon">🎁</span>
-
-          <div>
-            <h3>A gift they will actually use.</h3>
-
-            <p>
-              Choose an amount, add a message and send it directly
-              to their inbox.
-            </p>
-          </div>
-        </div>
-
-        <a
-          className="button dark"
-          href={GIFT_CARD_URL}
-          target="_blank"
-          rel="noreferrer"
+        <section
+          className="home-section gift-card-section"
+          id="gift-cards"
         >
-          Buy a gift card
-        </a>
-      </div>
-    </>
-  ) : (
-    <div className="gift-card-coming-soon">
-      <div className="gift-card-coming-soon-icon">
-        🎁
-      </div>
+          <div className="gift-card-heading">
+            <div>
+              <div className="section-kicker">
+                BROKEN HILL HOTEL GIFT CARDS
+              </div>
 
-      <div className="gift-card-coming-soon-copy">
-        <span className="coming-soon-badge">
-          COMING SOON
-        </span>
+              <h2>
+                Give the gift of
+                <br />
+                good times.
+              </h2>
+            </div>
 
-        <h3>
-          Broken Hill Hotel gift cards are on the way.
-        </h3>
+            <div className="gift-card-intro">
+              {GIFT_CARDS_AVAILABLE ? (
+                <>
+                  <p>
+                    Treat someone special to great food, cold drinks
+                    and a memorable visit to the Broken Hill Hotel.
+                  </p>
 
-        <p>
-          Soon you will be able to purchase digital gift cards for
-          meals, drinks and memorable nights at the Brokie.
-        </p>
+                  <div className="gift-card-benefits">
+                    <span>
+                      ✓ Choose your amount
+                    </span>
+                    <span>
+                      ✓ Add a personal message
+                    </span>
+                    <span>
+                      ✓ Send instantly by email
+                    </span>
+                  </div>
 
-        <a className="button dark" href={phoneHref}>
-          Call us for gift enquiries
-        </a>
-      </div>
-    </div>
-  )}
-</section>
+                  <a
+                    className="text-link"
+                    href={GIFT_CARD_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open gift cards in a new window ↗
+                  </a>
+                </>
+              ) : (
+                <p>
+                  Digital gift cards are currently being prepared
+                  and will be available soon.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {GIFT_CARDS_AVAILABLE ? (
+            <div className="gift-card-live-card">
+              <div className="gift-card-preview">
+                <span className="gift-card-preview-mark">
+                  BH
+                </span>
+
+                <div>
+                  <strong>
+                    Broken Hill Hotel
+                  </strong>
+
+                  <small>
+                    Gift Card
+                  </small>
+                </div>
+
+                <span className="gift-card-preview-year">
+                  EST. 1899
+                </span>
+              </div>
+
+              <div className="gift-card-live-copy">
+                <span className="coming-soon-badge">
+                  AVAILABLE ONLINE
+                </span>
+
+                <h3>
+                  A gift they will actually use.
+                </h3>
+
+                <p>
+                  Select an amount, add your message and send it
+                  directly to their inbox.
+                </p>
+
+                <a
+                  className="button dark"
+                  href={GIFT_CARD_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Buy a gift card
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="gift-card-coming-soon">
+              <div className="gift-card-coming-soon-icon">
+                🎁
+              </div>
+
+              <div className="gift-card-coming-soon-copy">
+                <span className="coming-soon-badge">
+                  COMING SOON
+                </span>
+
+                <h3>
+                  Broken Hill Hotel gift cards are on the way.
+                </h3>
+
+                <p>
+                  Soon you will be able to purchase digital gift
+                  cards for meals, drinks and memorable nights at
+                  the Brokie.
+                </p>
+
+                <a
+                  className="button dark"
+                  href={phoneHref}
+                >
+                  Call us for gift enquiries
+                </a>
+              </div>
+            </div>
+          )}
+        </section>
 
         {/* Visit */}
         <section
@@ -713,8 +936,29 @@ export default async function Home() {
                     : "Online ordering closed"}
                   <br />
                   Typical pickup{" "}
-                  {settings.pickupMinutes}{" "}
-                  minutes
+                  {settings.pickupMinutes} minutes
+                </p>
+              </div>
+
+              <div>
+                <small>
+                  BOOKINGS
+                </small>
+
+                <p>
+                  {BOOKINGS_AVAILABLE ? (
+                    <a
+                      href={BOOKING_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Book a table ↗
+                    </a>
+                  ) : (
+                    <a href={phoneHref}>
+                      Call to reserve
+                    </a>
+                  )}
                 </p>
               </div>
 
@@ -763,6 +1007,28 @@ export default async function Home() {
         </section>
       </main>
 
+      <a
+        className="floating-booking-button"
+        href={BOOKINGS_AVAILABLE ? BOOKING_URL : phoneHref}
+        target={BOOKINGS_AVAILABLE ? "_blank" : undefined}
+        rel={
+          BOOKINGS_AVAILABLE
+            ? "noopener noreferrer"
+            : undefined
+        }
+      >
+        <span className="floating-booking-icon">
+          ◷
+        </span>
+
+        <span>
+          <small>
+            RESERVE ONLINE
+          </small>
+          Book a table
+        </span>
+      </a>
+
       <footer className="home-footer">
         <div className="brand">
           <span className="mark">
@@ -781,6 +1047,10 @@ export default async function Home() {
         <div className="footer-links">
           <a href="#eat">
             Eat
+          </a>
+
+          <a href="#book">
+            Book a Table
           </a>
 
           <a href="#stay">
