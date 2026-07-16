@@ -1,6 +1,8 @@
 import SiteHeader from "@/components/SiteHeader";
 import SpecialsSlider from "@/components/SpecialsSlider";
+import UpcomingSports from "@/components/UpcomingSports";
 import { getPublicMenu, getSpecials } from "@/lib/db";
+import { getUpcomingSports } from "@/lib/sports";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +41,15 @@ function money(priceCents: number) {
 }
 
 export default async function Home() {
-  const [{ settings, categories, items }, specials] =
-    await Promise.all([getPublicMenu(), getSpecials()]);
+  const [
+    { settings, categories, items },
+    specials,
+    upcomingSports,
+  ] = await Promise.all([
+    getPublicMenu(),
+    getSpecials(),
+    getUpcomingSports(),
+  ]);
 
   const activeCategories = categories
     .filter((category) => category.active)
@@ -102,6 +111,10 @@ export default async function Home() {
     "https://www.google.com/maps/search/?api=1&query=" +
     encodeURIComponent(settings.address);
 
+  const bookingHref = BOOKINGS_AVAILABLE
+    ? BOOKING_URL
+    : phoneHref;
+
   return (
     <>
       <div className="announcement">
@@ -110,6 +123,10 @@ export default async function Home() {
         </span>
 
         <div className="announcement-actions">
+          <a href="#live-sport">
+            Live sport
+          </a>
+
           <a href="#book">
             Book a table
           </a>
@@ -172,9 +189,9 @@ export default async function Home() {
 
               <a
                 className="button ghost"
-                href="#eat"
+                href="#live-sport"
               >
-                Explore the menu
+                Live sport
               </a>
             </div>
           </div>
@@ -306,6 +323,18 @@ export default async function Home() {
           </article>
         </section>
 
+        {/* Dynamic live sport */}
+        <UpcomingSports
+          fixtures={upcomingSports}
+          phoneHref={phoneHref}
+          bookingUrl={
+            BOOKINGS_AVAILABLE
+              ? BOOKING_URL
+              : undefined
+          }
+          timezone="Australia/Perth"
+        />
+
         {/* Book a table */}
         <section
           className="home-section booking-section"
@@ -332,7 +361,8 @@ export default async function Home() {
 
               <p>
                 Lunch, dinner, family gatherings or a relaxed night
-                at the local. Reserve your table in a few quick steps.
+                at the local. Reserve your table in a few quick
+                steps.
               </p>
 
               <div className="booking-highlights">
@@ -372,9 +402,11 @@ export default async function Home() {
             <div className="booking-details-grid">
               <div>
                 <small>LOCATION</small>
+
                 <strong>
                   Broken Hill Hotel
                 </strong>
+
                 <span>
                   {settings.address}
                 </span>
@@ -382,9 +414,11 @@ export default async function Home() {
 
               <div>
                 <small>PHONE BOOKINGS</small>
+
                 <strong>
                   {settings.phone}
                 </strong>
+
                 <span>
                   Large groups welcome
                 </span>
@@ -434,7 +468,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Optional embedded booking widget */}
+        {/* Embedded booking widget */}
         {BOOKINGS_AVAILABLE && (
           <section className="home-section booking-widget-section">
             <div className="booking-widget-heading">
@@ -464,6 +498,7 @@ export default async function Home() {
                 src={BOOKING_URL}
                 title="Book a table at Broken Hill Hotel"
                 loading="lazy"
+                allow="payment"
               />
             </div>
 
@@ -541,60 +576,47 @@ export default async function Home() {
             </div>
 
             <div className="favourite-grid">
-              {favouriteItems.map(
-                (item) => (
-                  <article
-                    className="favourite-card"
-                    key={item.id}
-                  >
-                    <div
-                      className="favourite-image"
-                      style={{
-                        backgroundImage: `url("${item.imageUrl}")`,
-                      }}
-                    />
+              {favouriteItems.map((item) => (
+                <article
+                  className="favourite-card"
+                  key={item.id}
+                >
+                  <div
+                    className="favourite-image"
+                    style={{
+                      backgroundImage: `url("${item.imageUrl}")`,
+                    }}
+                  />
 
-                    <div className="favourite-info">
-                      <div>
-                        <h3>
-                          {item.name}
-                        </h3>
+                  <div className="favourite-info">
+                    <div>
+                      <h3>{item.name}</h3>
 
-                        {item.description && (
-                          <p>
-                            {item.description}
-                          </p>
+                      {item.description && (
+                        <p>{item.description}</p>
+                      )}
+
+                      {Array.isArray(item.dietary) &&
+                        item.dietary.length > 0 && (
+                          <div className="tags">
+                            {item.dietary.map((tag) => (
+                              <span
+                                className="tag"
+                                key={tag}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                         )}
-
-                        {Array.isArray(
-                          item.dietary,
-                        ) &&
-                          item.dietary.length >
-                            0 && (
-                            <div className="tags">
-                              {item.dietary.map(
-                                (tag) => (
-                                  <span
-                                    className="tag"
-                                    key={tag}
-                                  >
-                                    {tag}
-                                  </span>
-                                ),
-                              )}
-                            </div>
-                          )}
-                      </div>
-
-                      <strong>
-                        {money(
-                          item.priceCents,
-                        )}
-                      </strong>
                     </div>
-                  </article>
-                ),
-              )}
+
+                    <strong>
+                      {money(item.priceCents)}
+                    </strong>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         )}
@@ -628,13 +650,9 @@ export default async function Home() {
 
             <div className="amenity-grid">
               <span>✓ Free Wi-Fi</span>
-              <span>
-                ✓ On-site bar and dining
-              </span>
+              <span>✓ On-site bar and dining</span>
               <span>✓ Easy parking</span>
-              <span>
-                ✓ Central Boulder location
-              </span>
+              <span>✓ Central Boulder location</span>
             </div>
 
             <a
@@ -716,12 +734,12 @@ export default async function Home() {
                 </h3>
 
                 <p>
-                  Catch major fixtures live in the public bar.
+                  Browse upcoming fixtures scheduled at the hotel.
                 </p>
               </div>
 
-              <a href={phoneHref}>
-                Check schedule →
+              <a href="#live-sport">
+                View fixtures →
               </a>
             </article>
           </div>
@@ -779,15 +797,9 @@ export default async function Home() {
                   </p>
 
                   <div className="gift-card-benefits">
-                    <span>
-                      ✓ Choose your amount
-                    </span>
-                    <span>
-                      ✓ Add a personal message
-                    </span>
-                    <span>
-                      ✓ Send instantly by email
-                    </span>
+                    <span>✓ Choose your amount</span>
+                    <span>✓ Add a personal message</span>
+                    <span>✓ Send instantly by email</span>
                   </div>
 
                   <a
@@ -904,19 +916,12 @@ export default async function Home() {
 
             <div className="visit-grid">
               <div>
-                <small>
-                  ADDRESS
-                </small>
-
-                <p>
-                  {settings.address}
-                </p>
+                <small>ADDRESS</small>
+                <p>{settings.address}</p>
               </div>
 
               <div>
-                <small>
-                  PHONE
-                </small>
+                <small>PHONE</small>
 
                 <p>
                   <a href={phoneHref}>
@@ -926,9 +931,7 @@ export default async function Home() {
               </div>
 
               <div>
-                <small>
-                  ORDERING
-                </small>
+                <small>ORDERING</small>
 
                 <p>
                   {settings.isOrderingOpen
@@ -941,31 +944,41 @@ export default async function Home() {
               </div>
 
               <div>
-                <small>
-                  BOOKINGS
-                </small>
+                <small>BOOKINGS</small>
 
                 <p>
-                  {BOOKINGS_AVAILABLE ? (
-                    <a
-                      href={BOOKING_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Book a table ↗
-                    </a>
-                  ) : (
-                    <a href={phoneHref}>
-                      Call to reserve
-                    </a>
-                  )}
+                  <a
+                    href={bookingHref}
+                    target={
+                      BOOKINGS_AVAILABLE
+                        ? "_blank"
+                        : undefined
+                    }
+                    rel={
+                      BOOKINGS_AVAILABLE
+                        ? "noopener noreferrer"
+                        : undefined
+                    }
+                  >
+                    {BOOKINGS_AVAILABLE
+                      ? "Book a table ↗"
+                      : "Call to reserve"}
+                  </a>
                 </p>
               </div>
 
               <div>
-                <small>
-                  SOCIAL
-                </small>
+                <small>LIVE SPORT</small>
+
+                <p>
+                  <a href="#live-sport">
+                    View upcoming fixtures
+                  </a>
+                </p>
+              </div>
+
+              <div>
+                <small>SOCIAL</small>
 
                 <p>
                   <a
@@ -1009,8 +1022,12 @@ export default async function Home() {
 
       <a
         className="floating-booking-button"
-        href={BOOKINGS_AVAILABLE ? BOOKING_URL : phoneHref}
-        target={BOOKINGS_AVAILABLE ? "_blank" : undefined}
+        href={bookingHref}
+        target={
+          BOOKINGS_AVAILABLE
+            ? "_blank"
+            : undefined
+        }
         rel={
           BOOKINGS_AVAILABLE
             ? "noopener noreferrer"
@@ -1023,9 +1040,14 @@ export default async function Home() {
 
         <span>
           <small>
-            RESERVE ONLINE
+            {BOOKINGS_AVAILABLE
+              ? "RESERVE ONLINE"
+              : "PHONE BOOKINGS"}
           </small>
-          Book a table
+
+          {BOOKINGS_AVAILABLE
+            ? "Book a table"
+            : "Call to reserve"}
         </span>
       </a>
 
@@ -1047,6 +1069,10 @@ export default async function Home() {
         <div className="footer-links">
           <a href="#eat">
             Eat
+          </a>
+
+          <a href="#live-sport">
+            Live Sport
           </a>
 
           <a href="#book">
