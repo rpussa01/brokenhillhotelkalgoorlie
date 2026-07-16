@@ -13,6 +13,14 @@ const EAT_CARD_IMAGE =
 const BAR_CARD_IMAGE =
   "https://www.beerdrawingservices.com.au/wp-content/uploads/2020/08/16-min-719x1024.jpg";
 
+
+  const GIFT_CARD_URL =
+  process.env.NEXT_PUBLIC_GIFT_CARD_URL ?? "";
+
+const GIFT_CARDS_AVAILABLE =
+  process.env.NEXT_PUBLIC_GIFT_CARDS_ENABLED === "true" &&
+  Boolean(GIFT_CARD_URL);
+
 function money(priceCents: number) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -22,10 +30,8 @@ function money(priceCents: number) {
 }
 
 export default async function Home() {
-  const [{ settings, categories, items }, specials] = await Promise.all([
-    getPublicMenu(),
-    getSpecials(),
-  ]);
+  const [{ settings, categories, items }, specials] =
+    await Promise.all([getPublicMenu(), getSpecials()]);
 
   const activeCategories = categories
     .filter((category) => category.active)
@@ -71,7 +77,11 @@ export default async function Home() {
   });
 
   const favouriteItems = foodItems
-    .filter((item) => !item.soldOut && Boolean(item.imageUrl))
+    .filter(
+      (item) =>
+        !item.soldOut &&
+        Boolean(item.imageUrl),
+    )
     .slice(0, 3);
 
   const phoneHref = `tel:${settings.phone.replace(
@@ -90,13 +100,21 @@ export default async function Home() {
           Open daily • Cold beer • Great food • Local hospitality
         </span>
 
-        <a href="/order">Order food online →</a>
+        <div className="announcement-actions">
+          <a href="#gift-cards">
+            Buy a gift card
+          </a>
+
+          <a href="/order">
+            Order food online →
+          </a>
+        </div>
       </div>
 
       <SiteHeader />
 
       <main>
-        {/* Static main hero */}
+        {/* Hero */}
         <section
           className="home-hero"
           style={{
@@ -125,12 +143,25 @@ export default async function Home() {
             </p>
 
             <div className="home-actions">
-              <a className="button" href="/order">
+              <a
+                className="button"
+                href="/order"
+              >
                 Order food
               </a>
 
-              <a className="button ghost" href="#eat">
+              <a
+                className="button ghost"
+                href="#eat"
+              >
                 Explore the menu
+              </a>
+
+              <a
+                className="button ghost"
+                href="#gift-cards"
+              >
+                Gift cards
               </a>
             </div>
           </div>
@@ -140,25 +171,30 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Database-driven ticker */}
+        {/* Category ticker */}
         {activeCategories.length > 0 && (
           <section className="home-ticker">
-            {activeCategories.map((category, index) => (
-              <span
-                className="home-ticker-item"
-                key={category.id}
-              >
-                <span>{category.name.toUpperCase()}</span>
+            {activeCategories.map(
+              (category, index) => (
+                <span
+                  className="home-ticker-item"
+                  key={category.id}
+                >
+                  <span>
+                    {category.name.toUpperCase()}
+                  </span>
 
-                {index < activeCategories.length - 1 && (
-                  <b>✦</b>
-                )}
-              </span>
-            ))}
+                  {index <
+                    activeCategories.length - 1 && (
+                    <b>✦</b>
+                  )}
+                </span>
+              ),
+            )}
           </section>
         )}
 
-        {/* Static introduction */}
+        {/* Introduction */}
         <section className="home-section intro-section">
           <div className="section-kicker">
             WELCOME TO THE BROKIE
@@ -179,14 +215,17 @@ export default async function Home() {
                 come together.
               </p>
 
-              <a className="text-link" href="#visit">
+              <a
+                className="text-link"
+                href="#visit"
+              >
                 Plan your visit ↗
               </a>
             </div>
           </div>
         </section>
 
-        {/* Both cards are fully static */}
+        {/* Eat and drink */}
         <section
           className="home-section home-feature-grid"
           id="eat"
@@ -198,7 +237,9 @@ export default async function Home() {
             }}
           >
             <div>
-              <div className="eyebrow">EAT</div>
+              <div className="eyebrow">
+                EAT
+              </div>
 
               <h3>
                 Big flavour.
@@ -211,7 +252,10 @@ export default async function Home() {
                 specials, cooked fresh and made to satisfy.
               </p>
 
-              <a className="button light" href="/order">
+              <a
+                className="button light"
+                href="/order"
+              >
                 View menu and order
               </a>
             </div>
@@ -224,7 +268,9 @@ export default async function Home() {
             }}
           >
             <div>
-              <div className="eyebrow">DRINK</div>
+              <div className="eyebrow">
+                DRINK
+              </div>
 
               <h3>
                 Your local,
@@ -237,32 +283,38 @@ export default async function Home() {
                 from open until late.
               </p>
 
-              <a className="button light" href="#visit">
+              <a
+                className="button light"
+                href="#visit"
+              >
                 See venue details
               </a>
             </div>
           </article>
         </section>
 
-        {/* Database-driven specials */}
+        {/* Specials */}
         {specials.length > 0 && (
           <SpecialsSlider
-            specials={specials.map((special) => ({
-              id: special.id,
-              title: special.title,
-              description: special.description,
-              price:
-                special.price === null
-                  ? null
-                  : Number(special.price),
-              day: special.day,
-              badge: special.badge,
-              imageUrl: special.imageUrl,
-            }))}
+            specials={specials.map(
+              (special) => ({
+                id: special.id,
+                title: special.title,
+                description:
+                  special.description,
+                price:
+                  special.price === null
+                    ? null
+                    : Number(special.price),
+                day: special.day,
+                badge: special.badge,
+                imageUrl: special.imageUrl,
+              }),
+            )}
           />
         )}
 
-        {/* Database-driven favourites */}
+        {/* Favourites */}
         {favouriteItems.length > 0 && (
           <section className="home-section favourites-section">
             <div className="home-section-head">
@@ -271,56 +323,74 @@ export default async function Home() {
                   BROKIE FAVOURITES
                 </div>
 
-                <h2>What are you hungry for?</h2>
+                <h2>
+                  What are you hungry for?
+                </h2>
               </div>
 
-              <a className="button dark" href="/order">
+              <a
+                className="button dark"
+                href="/order"
+              >
                 Full online menu
               </a>
             </div>
 
             <div className="favourite-grid">
-              {favouriteItems.map((item) => (
-                <article
-                  className="favourite-card"
-                  key={item.id}
-                >
-                  <div
-                    className="favourite-image"
-                    style={{
-                      backgroundImage: `url("${item.imageUrl}")`,
-                    }}
-                  />
+              {favouriteItems.map(
+                (item) => (
+                  <article
+                    className="favourite-card"
+                    key={item.id}
+                  >
+                    <div
+                      className="favourite-image"
+                      style={{
+                        backgroundImage: `url("${item.imageUrl}")`,
+                      }}
+                    />
 
-                  <div className="favourite-info">
-                    <div>
-                      <h3>{item.name}</h3>
+                    <div className="favourite-info">
+                      <div>
+                        <h3>
+                          {item.name}
+                        </h3>
 
-                      {item.description && (
-                        <p>{item.description}</p>
-                      )}
-
-                      {Array.isArray(item.dietary) &&
-                        item.dietary.length > 0 && (
-                          <div className="tags">
-                            {item.dietary.map((tag) => (
-                              <span
-                                className="tag"
-                                key={tag}
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
+                        {item.description && (
+                          <p>
+                            {item.description}
+                          </p>
                         )}
-                    </div>
 
-                    <strong>
-                      {money(item.priceCents)}
-                    </strong>
-                  </div>
-                </article>
-              ))}
+                        {Array.isArray(
+                          item.dietary,
+                        ) &&
+                          item.dietary.length >
+                            0 && (
+                            <div className="tags">
+                              {item.dietary.map(
+                                (tag) => (
+                                  <span
+                                    className="tag"
+                                    key={tag}
+                                  >
+                                    {tag}
+                                  </span>
+                                ),
+                              )}
+                            </div>
+                          )}
+                      </div>
+
+                      <strong>
+                        {money(
+                          item.priceCents,
+                        )}
+                      </strong>
+                    </div>
+                  </article>
+                ),
+              )}
             </div>
           </section>
         )}
@@ -331,7 +401,9 @@ export default async function Home() {
           id="stay"
         >
           <div className="stay-photo">
-            <span>ROOMS AVAILABLE</span>
+            <span>
+              ROOMS AVAILABLE
+            </span>
           </div>
 
           <div className="stay-copy">
@@ -340,7 +412,8 @@ export default async function Home() {
             </div>
 
             <h2>
-              Simple, comfortable, convenient.
+              Simple, comfortable,
+              convenient.
             </h2>
 
             <p>
@@ -351,12 +424,19 @@ export default async function Home() {
 
             <div className="amenity-grid">
               <span>✓ Free Wi-Fi</span>
-              <span>✓ On-site bar and dining</span>
+              <span>
+                ✓ On-site bar and dining
+              </span>
               <span>✓ Easy parking</span>
-              <span>✓ Central Boulder location</span>
+              <span>
+                ✓ Central Boulder location
+              </span>
             </div>
 
-            <a className="button" href={phoneHref}>
+            <a
+              className="button"
+              href={phoneHref}
+            >
               Call to book a room
             </a>
           </div>
@@ -383,14 +463,19 @@ export default async function Home() {
               </div>
 
               <div>
-                <h3>Midweek Meal Deal</h3>
+                <h3>
+                  Midweek Meal Deal
+                </h3>
+
                 <p>
                   A rotating pub favourite at a locals-friendly
                   price.
                 </p>
               </div>
 
-              <a href={phoneHref}>Enquire →</a>
+              <a href={phoneHref}>
+                Enquire →
+              </a>
             </article>
 
             <article>
@@ -400,14 +485,19 @@ export default async function Home() {
               </div>
 
               <div>
-                <h3>Friday Knock-Offs</h3>
+                <h3>
+                  Friday Knock-Offs
+                </h3>
+
                 <p>
                   Cold drinks, good company and the weekend starts
                   here.
                 </p>
               </div>
 
-              <a href="#visit">Get directions →</a>
+              <a href="#visit">
+                Get directions →
+              </a>
             </article>
 
             <article>
@@ -417,18 +507,23 @@ export default async function Home() {
               </div>
 
               <div>
-                <h3>Big Games on Screen</h3>
+                <h3>
+                  Big Games on Screen
+                </h3>
+
                 <p>
                   Catch major fixtures live in the public bar.
                 </p>
               </div>
 
-              <a href={phoneHref}>Check schedule →</a>
+              <a href={phoneHref}>
+                Check schedule →
+              </a>
             </article>
           </div>
         </section>
 
-        {/* Order banner */}
+        {/* Online ordering banner */}
         <section className="home-order-banner">
           <div>
             <div className="eyebrow dark-text">
@@ -445,10 +540,128 @@ export default async function Home() {
             </p>
           </div>
 
-          <a className="button dark" href="/order">
+          <a
+            className="button dark"
+            href="/order"
+          >
             Start an order
           </a>
         </section>
+
+        {/* Gift cards */}
+       {/* Gift cards */}
+<section
+  className="home-section gift-card-section"
+  id="gift-cards"
+>
+  <div className="gift-card-heading">
+    <div>
+      <div className="section-kicker">
+        BROKEN HILL HOTEL GIFT CARDS
+      </div>
+
+      <h2>
+        Give the gift of
+        <br />
+        good times.
+      </h2>
+    </div>
+
+    <div className="gift-card-intro">
+      {GIFT_CARDS_AVAILABLE ? (
+        <>
+          <p>
+            Treat someone special to great food, cold drinks and a
+            memorable visit to the Broken Hill Hotel.
+          </p>
+
+          <div className="gift-card-benefits">
+            <span>✓ Choose your amount</span>
+            <span>✓ Add a personal message</span>
+            <span>✓ Send instantly by email</span>
+          </div>
+
+          <a
+            className="text-link"
+            href={GIFT_CARD_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open gift cards in a new window ↗
+          </a>
+        </>
+      ) : (
+        <p>
+          Digital gift cards are currently being prepared and will
+          be available soon.
+        </p>
+      )}
+    </div>
+  </div>
+
+  {GIFT_CARDS_AVAILABLE ? (
+    <>
+      <div className="gift-card-frame-wrapper">
+        <iframe
+          className="gift-card-frame"
+          src={GIFT_CARD_URL}
+          title="Broken Hill Hotel Gift Cards"
+          loading="lazy"
+          allow="payment"
+        />
+      </div>
+
+      <div className="gift-card-mobile-cta">
+        <div>
+          <span className="gift-card-icon">🎁</span>
+
+          <div>
+            <h3>A gift they will actually use.</h3>
+
+            <p>
+              Choose an amount, add a message and send it directly
+              to their inbox.
+            </p>
+          </div>
+        </div>
+
+        <a
+          className="button dark"
+          href={GIFT_CARD_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Buy a gift card
+        </a>
+      </div>
+    </>
+  ) : (
+    <div className="gift-card-coming-soon">
+      <div className="gift-card-coming-soon-icon">
+        🎁
+      </div>
+
+      <div className="gift-card-coming-soon-copy">
+        <span className="coming-soon-badge">
+          COMING SOON
+        </span>
+
+        <h3>
+          Broken Hill Hotel gift cards are on the way.
+        </h3>
+
+        <p>
+          Soon you will be able to purchase digital gift cards for
+          meals, drinks and memorable nights at the Brokie.
+        </p>
+
+        <a className="button dark" href={phoneHref}>
+          Call us for gift enquiries
+        </a>
+      </div>
+    </div>
+  )}
+</section>
 
         {/* Visit */}
         <section
@@ -468,12 +681,20 @@ export default async function Home() {
 
             <div className="visit-grid">
               <div>
-                <small>ADDRESS</small>
-                <p>{settings.address}</p>
+                <small>
+                  ADDRESS
+                </small>
+
+                <p>
+                  {settings.address}
+                </p>
               </div>
 
               <div>
-                <small>PHONE</small>
+                <small>
+                  PHONE
+                </small>
+
                 <p>
                   <a href={phoneHref}>
                     {settings.phone}
@@ -482,18 +703,26 @@ export default async function Home() {
               </div>
 
               <div>
-                <small>ORDERING</small>
+                <small>
+                  ORDERING
+                </small>
+
                 <p>
                   {settings.isOrderingOpen
                     ? "Online ordering open"
                     : "Online ordering closed"}
                   <br />
-                  Typical pickup {settings.pickupMinutes} minutes
+                  Typical pickup{" "}
+                  {settings.pickupMinutes}{" "}
+                  minutes
                 </p>
               </div>
 
               <div>
-                <small>SOCIAL</small>
+                <small>
+                  SOCIAL
+                </small>
+
                 <p>
                   <a
                     href="https://www.instagram.com/thebrokenhillkalgoorlie/"
@@ -517,11 +746,18 @@ export default async function Home() {
           </div>
 
           <div className="map-panel">
-            <div className="map-pin">BH</div>
+            <div className="map-pin">
+              BH
+            </div>
 
             <div className="map-label">
-              <strong>{settings.venueName}</strong>
-              <span>{settings.address}</span>
+              <strong>
+                {settings.venueName}
+              </strong>
+
+              <span>
+                {settings.address}
+              </span>
             </div>
           </div>
         </section>
@@ -529,10 +765,13 @@ export default async function Home() {
 
       <footer className="home-footer">
         <div className="brand">
-          <span className="mark">BH</span>
+          <span className="mark">
+            BH
+          </span>
 
           <span>
             {settings.venueName}
+
             <small>
               YOUR LOCAL SINCE 1899
             </small>
@@ -540,16 +779,34 @@ export default async function Home() {
         </div>
 
         <div className="footer-links">
-          <a href="#eat">Eat</a>
-          <a href="#stay">Stay</a>
-          <a href="#whats-on">What&apos;s On</a>
-          <a href="#visit">Contact</a>
-          <a href="/order">Order online</a>
+          <a href="#eat">
+            Eat
+          </a>
+
+          <a href="#stay">
+            Stay
+          </a>
+
+          <a href="#whats-on">
+            What&apos;s On
+          </a>
+
+          <a href="#gift-cards">
+            Gift Cards
+          </a>
+
+          <a href="#visit">
+            Contact
+          </a>
+
+          <a href="/order">
+            Order online
+          </a>
         </div>
 
         <p>
-          © {new Date().getFullYear()} {settings.venueName} •
-          Drink responsibly • 18+
+          © {new Date().getFullYear()}{" "}
+          {settings.venueName} • Drink responsibly • 18+
         </p>
       </footer>
     </>
