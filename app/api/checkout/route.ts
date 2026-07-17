@@ -20,16 +20,35 @@ type CheckoutBody = {
   tableNumber?: string;
 };
 
-function getBaseUrl(request: Request) {
+function getBaseUrl(): string {
   const configuredUrl =
     process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
     process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
-  if (configuredUrl) {
-    return configuredUrl.replace(/\/$/, "");
+  if (!configuredUrl) {
+    throw new Error(
+      "NEXT_PUBLIC_SITE_URL or NEXT_PUBLIC_BASE_URL is not configured.",
+    );
   }
 
-  return new URL(request.url).origin;
+  const normalizedUrl = configuredUrl.replace(/\/+$/, "");
+
+  try {
+    const parsedUrl = new URL(normalizedUrl);
+
+    if (
+      parsedUrl.protocol !== "https:" &&
+      parsedUrl.protocol !== "http:"
+    ) {
+      throw new Error("Unsupported URL protocol.");
+    }
+
+    return parsedUrl.origin;
+  } catch {
+    throw new Error(
+      "NEXT_PUBLIC_SITE_URL or NEXT_PUBLIC_BASE_URL is invalid.",
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -37,6 +56,24 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "Stripe is not configured.",
+      },
+      { status: 503 },
+    );
+  }
+
+  let baseUrl: string;
+
+  try {
+    baseUrl = getBaseUrl();
+  } catch (error) {
+    console.error("Invalid site URL configuration:", error);
+
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "The site URL is not configured.",
       },
       { status: 503 },
     );
@@ -97,7 +134,7 @@ export async function POST(request: Request) {
   try {
     /*
      * Load menu prices from the database.
-     * Never trust prices submitted by the browser.
+     * Never trust prices or totals submitted by the browser.
      */
     const uniqueMenuItemIds = [
       ...new Set(
@@ -125,9 +162,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const menuItemMap = new Map(
+      menuItems.map((menuItem) => [
+        menuItem.id,
+        menuItem,
+      ]),
+    );
+
     const orderLines = body.items.map((cartItem) => {
-      const menuItem = menuItems.find(
-        (item) => item.id === cartItem.menuItemId,
+      const menuItem = menuItemMap.get(
+        cartItem.menuItemId.trim(),
       );
 
       if (!menuItem) {
@@ -166,10 +210,6 @@ export async function POST(request: Request) {
       );
     }
 
-    /*
-     * Keep the transaction short.
-     * It only increments the order counter and creates the order.
-     */
     const order = await prisma.$transaction(
       async (tx) => {
         const counter = await tx.counter.upsert({
@@ -191,9 +231,13 @@ export async function POST(request: Request) {
           ? `Table: ${body.tableNumber.trim()}`
           : null;
 
-        const customerNotes = body.notes?.trim() || null;
+        const customerNotes =
+          body.notes?.trim() || null;
 
-        const combinedNotes = [tableNote, customerNotes]
+        const combinedNotes = [
+          tableNote,
+          customerNotes,
+        ]
           .filter(
             (value): value is string =>
               typeof value === "string" &&
@@ -242,14 +286,9 @@ export async function POST(request: Request) {
       },
     );
 
-    /*
-     * Stripe stays outside the Prisma transaction.
-     */
     const stripe = new Stripe(
       process.env.STRIPE_SECRET_KEY,
     );
-
-    const baseUrl = getBaseUrl(request);
 
     try {
       const session =
