@@ -79,3 +79,18 @@ export type MenuItem = {
 
   sortOrder: number;
 };
+export type Settings = {
+  venueName: string;
+  venuePhone: string;
+  venueEmail: string;
+  venueAddress: string;
+
+  pickupIntervalMinutes: number;
+  pickupLeadMinutes: number;
+
+  orderingEnabled: boolean;
+  showSoldOutItems: boolean;
+
+  stripePublishableKey?: string | null;
+  stripeEnabled?: boolean;
+};
