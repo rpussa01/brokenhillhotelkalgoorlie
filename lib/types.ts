@@ -80,17 +80,12 @@ export type MenuItem = {
   sortOrder: number;
 };
 export type Settings = {
+  id: string;
   venueName: string;
-  venuePhone: string;
-  venueEmail: string;
-  venueAddress: string;
-
-  pickupIntervalMinutes: number;
-  pickupLeadMinutes: number;
-
-  orderingEnabled: boolean;
-  showSoldOutItems: boolean;
-
-  stripePublishableKey?: string | null;
-  stripeEnabled?: boolean;
+  phone: string;
+  address: string;
+  isOrderingOpen: boolean;
+  pickupMinutes: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 };
