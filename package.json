@@ -19,6 +19,7 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "resend": "^6.17.2",
     "stripe": "^18.5.0",
     "zod": "^4.0.0"
   },
