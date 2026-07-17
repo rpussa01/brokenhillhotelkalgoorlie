@@ -1,31 +1,58 @@
-import type { Order as PrismaOrder, OrderLine as PrismaOrderLine } from "@prisma/client";
-import type { Order } from "./types";
+import type {
+  Order as PrismaOrder,
+  OrderLine as PrismaOrderLine,
+} from "@prisma/client";
 
-type OrderWithLines = PrismaOrder & { lines: PrismaOrderLine[] };
+import type {
+  Order,
+  OrderLine,
+} from "@/lib/types";
 
-export function serializeOrder(order: OrderWithLines): Order {
+type PrismaOrderWithLines = PrismaOrder & {
+  lines: PrismaOrderLine[];
+};
+
+export function serializeOrderLine(
+  line: PrismaOrderLine,
+): OrderLine {
+  return {
+    id: line.id,
+    orderId: line.orderId,
+    itemId: line.itemId,
+    specialId: line.specialId,
+    name: line.name,
+    quantity: line.quantity,
+    unitPriceCents: line.unitPriceCents,
+    notes: line.notes,
+  };
+}
+
+export function serializeOrder(
+  order: PrismaOrderWithLines,
+): Order {
   return {
     id: order.id,
     orderNumber: order.orderNumber,
+
     customerName: order.customerName,
     customerPhone: order.customerPhone,
-    customerEmail: order.customerEmail ?? undefined,
+    customerEmail: order.customerEmail,
+
     pickupTime: order.pickupTime.toISOString(),
-    notes: order.notes ?? undefined,
+    notes: order.notes,
+
     paymentMethod: order.paymentMethod,
     paymentStatus: order.paymentStatus,
-    stripeSessionId: order.stripeSessionId ?? undefined,
+    stripeSessionId: order.stripeSessionId,
+
     status: order.status,
+
     subtotalCents: order.subtotalCents,
     totalCents: order.totalCents,
-    lines: order.lines.map(line => ({
-      itemId: line.itemId,
-      name: line.name,
-      quantity: line.quantity,
-      unitPriceCents: line.unitPriceCents,
-      notes: line.notes ?? undefined
-    })),
+
     createdAt: order.createdAt.toISOString(),
-    updatedAt: order.updatedAt.toISOString()
+    updatedAt: order.updatedAt.toISOString(),
+
+    lines: order.lines.map(serializeOrderLine),
   };
 }

@@ -1,5 +1,6 @@
 export type OrderStatus =
   | "PENDING_PAYMENT"
+  | "PAYMENT_FAILED"
   | "RECEIVED"
   | "ACCEPTED"
   | "COOKING"
@@ -7,6 +8,53 @@ export type OrderStatus =
   | "COLLECTED"
   | "CANCELLED";
 
+export type PaymentMethod =
+  | "ONLINE"
+  | "PICKUP";
+
+export type PaymentStatus =
+  | "PENDING"
+  | "PAID"
+  | "FAILED"
+  | "PAY_AT_PICKUP"
+  | "REFUNDED";
+
+export type OrderLine = {
+  id: string;
+  orderId: string;
+  itemId: string | null;
+  specialId: string | null;
+  name: string;
+  quantity: number;
+  unitPriceCents: number;
+  notes: string | null;
+};
+
+export type Order = {
+  id: string;
+  orderNumber: number;
+
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+
+  pickupTime: string;
+  notes: string | null;
+
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  stripeSessionId: string | null;
+
+  status: OrderStatus;
+
+  subtotalCents: number;
+  totalCents: number;
+
+  createdAt: string;
+  updatedAt: string;
+
+  lines: OrderLine[];
+};
 export type Category = {
   id: string;
   name: string;
@@ -17,54 +65,17 @@ export type Category = {
 export type MenuItem = {
   id: string;
   categoryId: string;
+
   name: string;
   description: string | null;
   imageUrl: string | null;
+
   priceCents: number;
+
+  dietary: string[];
+
   active: boolean;
   soldOut: boolean;
-  dietary: string[];
+
   sortOrder: number;
-};
-
-export type OrderLine = {
-  itemId: string;
-  name: string;
-  quantity: number;
-  unitPriceCents: number;
-  notes?: string;
-};
-
-export type Order = {
-  id: string;
-  orderNumber: number;
-  customerName: string;
-  customerPhone: string;
-  customerEmail?: string;
-  pickupTime: string;
-  notes?: string;
-  paymentMethod: "ONLINE" | "PICKUP";
-  paymentStatus: "PENDING" | "PAID" | "PAY_AT_PICKUP" | "REFUNDED";
-  stripeSessionId?: string;
-  status: OrderStatus;
-  subtotalCents: number;
-  totalCents: number;
-  lines: OrderLine[];
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type Settings = {
-  venueName: string;
-  phone: string;
-  address: string;
-  isOrderingOpen: boolean;
-  pickupMinutes: number;
-};
-
-export type Database = {
-  settings: Settings;
-  categories: Category[];
-  items: MenuItem[];
-  orders: Order[];
 };
