@@ -26,11 +26,13 @@ type EditableOrder = {
   notes: string;
 };
 
-const columns: {
+type OrderColumn = {
   status: OrderStatus;
   title: string;
   description: string;
-}[] = [
+};
+
+const columns: OrderColumn[] = [
   {
     status: "PENDING_PAYMENT",
     title: "Awaiting payment",
@@ -70,7 +72,7 @@ const nextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
   READY: "COLLECTED",
 };
 
-function getActionLabel(status: OrderStatus) {
+function getActionLabel(status: OrderStatus): string | null {
   switch (status) {
     case "RECEIVED":
       return "Accept order";
@@ -91,7 +93,7 @@ function getActionLabel(status: OrderStatus) {
 
 function getPaymentLabel(
   paymentStatus: Order["paymentStatus"],
-) {
+): string {
   switch (paymentStatus) {
     case "PAID":
       return "Paid online";
@@ -107,13 +109,13 @@ function getPaymentLabel(
 
     case "REFUNDED":
       return "Refunded";
-
-    default:
-      return paymentStatus.replaceAll("_", " ");
   }
+
+  const exhaustiveCheck: never = paymentStatus;
+  return exhaustiveCheck;
 }
 
-function getStatusLabel(status: OrderStatus) {
+function getStatusLabel(status: OrderStatus): string {
   switch (status) {
     case "PENDING_PAYMENT":
       return "Awaiting payment";
@@ -138,16 +140,16 @@ function getStatusLabel(status: OrderStatus) {
 
     case "CANCELLED":
       return "Cancelled";
-
-    default:
-      return status.replaceAll("_", " ");
   }
+
+  const exhaustiveCheck: never = status;
+  return exhaustiveCheck;
 }
 
-function toDateTimeLocal(dateValue: string | Date) {
+function toDateTimeLocal(dateValue: string | Date): string {
   const date = new Date(dateValue);
-
   const offset = date.getTimezoneOffset();
+
   const localDate = new Date(
     date.getTime() - offset * 60_000,
   );
@@ -155,12 +157,24 @@ function toDateTimeLocal(dateValue: string | Date) {
   return localDate.toISOString().slice(0, 16);
 }
 
+function formatPerthTime(dateValue: string | Date): string {
+  return new Date(dateValue).toLocaleTimeString("en-AU", {
+    timeZone: "Australia/Perth",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatMoney(cents: number): string {
+  return `A$${(cents / 100).toFixed(2)}`;
+}
+
 export default function OrderBoard({
   initial,
 }: {
   initial: Order[];
 }) {
-  const [orders, setOrders] = useState(initial);
+  const [orders, setOrders] = useState<Order[]>(initial);
   const [search, setSearch] = useState("");
   const [paymentFilter, setPaymentFilter] =
     useState<PaymentFilter>("ALL");
@@ -190,28 +204,23 @@ export default function OrderBoard({
     setIsRefreshing(true);
 
     try {
-      const response = await fetch(
-        "/api/admin/orders",
-        {
-          cache: "no-store",
-        },
-      );
+      const response = await fetch("/api/admin/orders", {
+        cache: "no-store",
+      });
+
+      const result = await response.json().catch(() => null);
 
       if (!response.ok) {
         throw new Error(
-          `Could not refresh orders (${response.status}).`,
+          result?.error ||
+            `Could not refresh orders (${response.status}).`,
         );
       }
 
-      const data = (await response.json()) as Order[];
-
-      setOrders(data);
+      setOrders(result as Order[]);
       setError(null);
     } catch (refreshError) {
-      console.error(
-        "Could not refresh orders:",
-        refreshError,
-      );
+      console.error("Could not refresh orders:", refreshError);
 
       setError(
         refreshError instanceof Error
@@ -224,10 +233,7 @@ export default function OrderBoard({
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(
-      refresh,
-      8_000,
-    );
+    const timer = window.setInterval(refresh, 8_000);
 
     return () => {
       window.clearInterval(timer);
@@ -249,15 +255,11 @@ export default function OrderBoard({
           headers: {
             "content-type": "application/json",
           },
-          body: JSON.stringify({
-            status,
-          }),
+          body: JSON.stringify({ status }),
         },
       );
 
-      const result = await response
-        .json()
-        .catch(() => null);
+      const result = await response.json().catch(() => null);
 
       if (!response.ok) {
         throw new Error(
@@ -268,10 +270,7 @@ export default function OrderBoard({
 
       await refresh();
     } catch (updateError) {
-      console.error(
-        "Could not update order:",
-        updateError,
-      );
+      console.error("Could not update order:", updateError);
 
       setError(
         updateError instanceof Error
@@ -290,9 +289,7 @@ export default function OrderBoard({
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       customerEmail: order.customerEmail ?? "",
-      pickupTime: toDateTimeLocal(
-        order.pickupTime,
-      ),
+      pickupTime: toDateTimeLocal(order.pickupTime),
       notes: order.notes ?? "",
     });
   }
@@ -315,6 +312,12 @@ export default function OrderBoard({
     setError(null);
 
     try {
+      const pickupDate = new Date(editForm.pickupTime);
+
+      if (Number.isNaN(pickupDate.getTime())) {
+        throw new Error("Please enter a valid pickup time.");
+      }
+
       const response = await fetch(
         `/api/admin/orders/${editingOrder.id}`,
         {
@@ -324,22 +327,19 @@ export default function OrderBoard({
           },
           body: JSON.stringify({
             customerName:
-              editForm.customerName.trim(),
+              editForm.customerName.trim() || "Guest",
             customerPhone:
-              editForm.customerPhone.trim(),
+              editForm.customerPhone.trim() ||
+              "Not provided",
             customerEmail:
               editForm.customerEmail.trim() || null,
-            pickupTime: new Date(
-              editForm.pickupTime,
-            ).toISOString(),
+            pickupTime: pickupDate.toISOString(),
             notes: editForm.notes.trim() || null,
           }),
         },
       );
 
-      const result = await response
-        .json()
-        .catch(() => null);
+      const result = await response.json().catch(() => null);
 
       if (!response.ok) {
         throw new Error(
@@ -351,10 +351,7 @@ export default function OrderBoard({
       closeEditor();
       await refresh();
     } catch (saveError) {
-      console.error(
-        "Could not save order:",
-        saveError,
-      );
+      console.error("Could not save order:", saveError);
 
       setError(
         saveError instanceof Error
@@ -386,9 +383,7 @@ export default function OrderBoard({
         },
       );
 
-      const result = await response
-        .json()
-        .catch(() => null);
+      const result = await response.json().catch(() => null);
 
       if (!response.ok) {
         throw new Error(
@@ -399,15 +394,11 @@ export default function OrderBoard({
 
       setOrders((currentOrders) =>
         currentOrders.filter(
-          (candidate) =>
-            candidate.id !== order.id,
+          (candidate) => candidate.id !== order.id,
         ),
       );
     } catch (deleteError) {
-      console.error(
-        "Could not delete order:",
-        deleteError,
-      );
+      console.error("Could not delete order:", deleteError);
 
       setError(
         deleteError instanceof Error
@@ -420,33 +411,25 @@ export default function OrderBoard({
   }
 
   const filteredOrders = useMemo(() => {
-    const normalizedSearch = search
-      .trim()
-      .toLowerCase();
+    const normalizedSearch = search.trim().toLowerCase();
 
     return orders.filter((order) => {
       const matchesPayment =
         paymentFilter === "ALL" ||
         order.paymentStatus === paymentFilter;
 
+      const searchableValues = [
+        String(order.orderNumber),
+        order.customerName,
+        order.customerPhone,
+        order.customerEmail ?? "",
+        ...order.lines.map((line) => line.name),
+      ];
+
       const matchesSearch =
-        !normalizedSearch ||
-        String(order.orderNumber).includes(
-          normalizedSearch,
-        ) ||
-        order.customerName
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        order.customerPhone
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        order.customerEmail
-          ?.toLowerCase()
-          .includes(normalizedSearch) ||
-        order.lines.some((line) =>
-          line.name
-            .toLowerCase()
-            .includes(normalizedSearch),
+        normalizedSearch.length === 0 ||
+        searchableValues.some((value) =>
+          value.toLowerCase().includes(normalizedSearch),
         );
 
       return matchesPayment && matchesSearch;
@@ -454,45 +437,41 @@ export default function OrderBoard({
   }, [orders, paymentFilter, search]);
 
   const activeOrders = orders.filter((order) =>
-    [
-      "RECEIVED",
-      "ACCEPTED",
-      "COOKING",
-      "READY",
-    ].includes(order.status),
+    ["RECEIVED", "ACCEPTED", "COOKING", "READY"].includes(
+      order.status,
+    ),
   );
 
   const awaitingPayment = orders.filter(
-    (order) =>
-      order.status === "PENDING_PAYMENT",
+    (order) => order.status === "PENDING_PAYMENT",
+  );
+
+  const newOrders = orders.filter(
+    (order) => order.status === "RECEIVED",
+  );
+
+  const readyOrders = orders.filter(
+    (order) => order.status === "READY",
   );
 
   const paidSales = orders
     .filter(
       (order) =>
         order.paymentStatus === "PAID" ||
-        order.paymentStatus ===
-          "PAY_AT_PICKUP",
+        order.paymentStatus === "PAY_AT_PICKUP",
     )
-    .reduce(
-      (sum, order) =>
-        sum + order.totalCents,
-      0,
-    );
+    .reduce((sum, order) => sum + order.totalCents, 0);
 
   return (
     <div className="order-board-page">
       <section className="order-board-toolbar">
         <div>
-          <p className="board-kicker">
-            LIVE OPERATIONS
-          </p>
+          <p className="board-kicker">LIVE OPERATIONS</p>
 
           <h1>Order board</h1>
 
           <p className="board-subtitle">
-            Manage incoming orders from payment to
-            collection.
+            Manage incoming orders from payment to collection.
           </p>
         </div>
 
@@ -502,9 +481,7 @@ export default function OrderBoard({
           onClick={refresh}
           disabled={isRefreshing}
         >
-          {isRefreshing
-            ? "Refreshing…"
-            : "Refresh orders"}
+          {isRefreshing ? "Refreshing…" : "Refresh orders"}
         </button>
       </section>
 
@@ -530,43 +507,25 @@ export default function OrderBoard({
 
         <article className="stat">
           <span>Awaiting payment</span>
-          <strong>
-            {awaitingPayment.length}
-          </strong>
+          <strong>{awaitingPayment.length}</strong>
           <small>Not ready for preparation</small>
         </article>
 
         <article className="stat">
           <span>New orders</span>
-          <strong>
-            {
-              orders.filter(
-                (order) =>
-                  order.status === "RECEIVED",
-              ).length
-            }
-          </strong>
+          <strong>{newOrders.length}</strong>
           <small>Ready to accept</small>
         </article>
 
         <article className="stat">
           <span>Ready</span>
-          <strong>
-            {
-              orders.filter(
-                (order) =>
-                  order.status === "READY",
-              ).length
-            }
-          </strong>
+          <strong>{readyOrders.length}</strong>
           <small>Awaiting collection</small>
         </article>
 
         <article className="stat stat-value">
           <span>Order value</span>
-          <strong>
-            A${(paidSales / 100).toFixed(2)}
-          </strong>
+          <strong>{formatMoney(paidSales)}</strong>
           <small>Paid and pay-at-pickup</small>
         </article>
       </section>
@@ -578,9 +537,7 @@ export default function OrderBoard({
           <input
             type="search"
             value={search}
-            onChange={(event) =>
-              setSearch(event.target.value)
-            }
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Order number, customer or item"
           />
         </label>
@@ -592,29 +549,18 @@ export default function OrderBoard({
             value={paymentFilter}
             onChange={(event) =>
               setPaymentFilter(
-                event.target
-                  .value as PaymentFilter,
+                event.target.value as PaymentFilter,
               )
             }
           >
-            <option value="ALL">
-              All payments
-            </option>
-            <option value="PAID">
-              Paid online
-            </option>
-            <option value="PENDING">
-              Awaiting payment
-            </option>
+            <option value="ALL">All payments</option>
+            <option value="PAID">Paid online</option>
+            <option value="PENDING">Awaiting payment</option>
             <option value="PAY_AT_PICKUP">
               Pay at pickup
             </option>
-            <option value="FAILED">
-              Payment failed
-            </option>
-            <option value="REFUNDED">
-              Refunded
-            </option>
+            <option value="FAILED">Payment failed</option>
+            <option value="REFUNDED">Refunded</option>
           </select>
         </label>
       </section>
@@ -623,8 +569,7 @@ export default function OrderBoard({
         {columns.map((column) => {
           const columnOrders = filteredOrders
             .filter(
-              (order) =>
-                order.status === column.status,
+              (order) => order.status === column.status,
             )
             .sort((first, second) =>
               first.createdAt.localeCompare(
@@ -664,8 +609,7 @@ export default function OrderBoard({
                     getActionLabel(order.status);
 
                   const isAwaitingPayment =
-                    order.status ===
-                    "PENDING_PAYMENT";
+                    order.status === "PENDING_PAYMENT";
 
                   const isCancelled =
                     order.status === "CANCELLED";
@@ -692,22 +636,11 @@ export default function OrderBoard({
                       <header className="order-card-header">
                         <div>
                           <p className="order-number">
-                            Order #
-                            {order.orderNumber}
+                            Order #{order.orderNumber}
                           </p>
 
                           <span className="order-created">
-                            {new Date(
-                              order.createdAt,
-                            ).toLocaleTimeString(
-                              "en-AU",
-                              {
-                                timeZone:
-                                  "Australia/Perth",
-                                hour: "numeric",
-                                minute: "2-digit",
-                              },
-                            )}
+                            {formatPerthTime(order.createdAt)}
                           </span>
                         </div>
 
@@ -721,63 +654,43 @@ export default function OrderBoard({
                       </header>
 
                       <div className="customer-block">
-                        <strong>
-                          {order.customerName}
-                        </strong>
+                        <strong>{order.customerName}</strong>
 
                         <span>
                           Pickup{" "}
-                          {new Date(
-                            order.pickupTime,
-                          ).toLocaleTimeString(
-                            "en-AU",
-                            {
-                              timeZone:
-                                "Australia/Perth",
-                              hour: "numeric",
-                              minute: "2-digit",
-                            },
-                          )}
+                          {formatPerthTime(order.pickupTime)}
                         </span>
                       </div>
 
                       <div className="order-line-list">
-                        {order.lines.map(
-                          (line, index) => (
-                            <div
-                              className="order-line"
-                              key={
-                                line.id ??
-                                `${order.id}-${index}`
-                              }
-                            >
-                              <span className="line-quantity">
-                                {line.quantity}×
-                              </span>
+                        {order.lines.map((line, index) => (
+                          <div
+                            className="order-line"
+                            key={
+                              line.id ||
+                              `${order.id}-${index}`
+                            }
+                          >
+                            <span className="line-quantity">
+                              {line.quantity}×
+                            </span>
 
-                              <div>
-                                <strong>
-                                  {line.name}
-                                </strong>
+                            <div>
+                              <strong>{line.name}</strong>
 
-                                {line.notes && (
-                                  <small>
-                                    {line.notes}
-                                  </small>
-                                )}
-                              </div>
-
-                              <span>
-                                A$
-                                {(
-                                  (line.unitPriceCents *
-                                    line.quantity) /
-                                  100
-                                ).toFixed(2)}
-                              </span>
+                              {line.notes && (
+                                <small>{line.notes}</small>
+                              )}
                             </div>
-                          ),
-                        )}
+
+                            <span>
+                              {formatMoney(
+                                line.unitPriceCents *
+                                  line.quantity,
+                              )}
+                            </span>
+                          </div>
+                        ))}
                       </div>
 
                       {order.notes && (
@@ -794,9 +707,8 @@ export default function OrderBoard({
                           </strong>
 
                           <span>
-                            Do not prepare this order
-                            until Stripe confirms the
-                            payment.
+                            Do not prepare this order until
+                            Stripe confirms the payment.
                           </span>
                         </div>
                       )}
@@ -804,16 +716,11 @@ export default function OrderBoard({
                       <footer className="order-card-footer">
                         <div>
                           <span>
-                            {getStatusLabel(
-                              order.status,
-                            )}
+                            {getStatusLabel(order.status)}
                           </span>
 
                           <strong>
-                            A$
-                            {(
-                              order.totalCents / 100
-                            ).toFixed(2)}
+                            {formatMoney(order.totalCents)}
                           </strong>
                         </div>
 
@@ -824,8 +731,7 @@ export default function OrderBoard({
                             !isCancelled && (
                               <button
                                 className={
-                                  order.status ===
-                                  "COOKING"
+                                  order.status === "COOKING"
                                     ? "ready-action"
                                     : "primary-action"
                                 }
@@ -866,8 +772,7 @@ export default function OrderBoard({
                               className="secondary-action"
                               type="button"
                               disabled={
-                                isUpdating ||
-                                isDeleting
+                                isUpdating || isDeleting
                               }
                               onClick={() =>
                                 updateStatus(
@@ -884,12 +789,9 @@ export default function OrderBoard({
                             className="edit-action"
                             type="button"
                             disabled={
-                              isUpdating ||
-                              isDeleting
+                              isUpdating || isDeleting
                             }
-                            onClick={() =>
-                              openEditor(order)
-                            }
+                            onClick={() => openEditor(order)}
                           >
                             Edit
                           </button>
@@ -898,12 +800,9 @@ export default function OrderBoard({
                             className="delete-action"
                             type="button"
                             disabled={
-                              isUpdating ||
-                              isDeleting
+                              isUpdating || isDeleting
                             }
-                            onClick={() =>
-                              deleteOrder(order)
-                            }
+                            onClick={() => deleteOrder(order)}
                           >
                             {isDeleting
                               ? "Deleting…"
@@ -937,13 +836,10 @@ export default function OrderBoard({
           >
             <header>
               <div>
-                <p className="board-kicker">
-                  EDIT ORDER
-                </p>
+                <p className="board-kicker">EDIT ORDER</p>
 
                 <h2 id="edit-order-heading">
-                  Order #
-                  {editingOrder.orderNumber}
+                  Order #{editingOrder.orderNumber}
                 </h2>
               </div>
 
@@ -960,16 +856,14 @@ export default function OrderBoard({
               <div className="modal-field-grid">
                 <label>
                   <span>Customer name</span>
+
                   <input
                     required
-                    value={
-                      editForm.customerName
-                    }
+                    value={editForm.customerName}
                     onChange={(event) =>
                       setEditForm({
                         ...editForm,
-                        customerName:
-                          event.target.value,
+                        customerName: event.target.value,
                       })
                     }
                   />
@@ -977,16 +871,14 @@ export default function OrderBoard({
 
                 <label>
                   <span>Phone number</span>
+
                   <input
                     required
-                    value={
-                      editForm.customerPhone
-                    }
+                    value={editForm.customerPhone}
                     onChange={(event) =>
                       setEditForm({
                         ...editForm,
-                        customerPhone:
-                          event.target.value,
+                        customerPhone: event.target.value,
                       })
                     }
                   />
@@ -994,16 +886,14 @@ export default function OrderBoard({
 
                 <label>
                   <span>Email address</span>
+
                   <input
                     type="email"
-                    value={
-                      editForm.customerEmail
-                    }
+                    value={editForm.customerEmail}
                     onChange={(event) =>
                       setEditForm({
                         ...editForm,
-                        customerEmail:
-                          event.target.value,
+                        customerEmail: event.target.value,
                       })
                     }
                   />
@@ -1011,6 +901,7 @@ export default function OrderBoard({
 
                 <label>
                   <span>Pickup time</span>
+
                   <input
                     required
                     type="datetime-local"
@@ -1018,8 +909,7 @@ export default function OrderBoard({
                     onChange={(event) =>
                       setEditForm({
                         ...editForm,
-                        pickupTime:
-                          event.target.value,
+                        pickupTime: event.target.value,
                       })
                     }
                   />
