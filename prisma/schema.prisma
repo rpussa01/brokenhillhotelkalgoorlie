@@ -138,3 +138,11 @@ model Counter {
   id    String @id
   value Int    @default(0)
 }
+
+model KitchenSettings {
+  id          String   @id @default("main")
+  isOpen      Boolean  @default(true)
+  closedTitle String   @default("Kitchen currently closed")
+  closedNote  String   @default("Online ordering is unavailable right now. Please check again later.")
+  updatedAt   DateTime @updatedAt
+}
