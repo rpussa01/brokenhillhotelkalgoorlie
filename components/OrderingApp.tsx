@@ -504,23 +504,79 @@ export default function OrderingApp({
     setCheckout(false);
     setError("");
   }
+async function submitOrder(
+  event: FormEvent<HTMLFormElement>,
+) {
+  event.preventDefault();
 
-  async function submitOrder(
-    event: FormEvent<HTMLFormElement>,
+  /*
+   * Capture the HTML form and its values immediately.
+   *
+   * Do not use event.currentTarget after an await because the
+   * event target may no longer be available as an HTMLFormElement.
+   */
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+
+  if (!cartLines.length) {
+    setError(
+      "Your cart is empty. Please add an item.",
+    );
+
+    return;
+  }
+
+  const customerName = String(
+    formData.get("customerName") ?? "",
+  ).trim();
+
+  const customerPhone = String(
+    formData.get("customerPhone") ?? "",
+  ).trim();
+
+  const customerEmail = String(
+    formData.get("customerEmail") ?? "",
+  ).trim();
+
+  const pickupTime = String(
+    formData.get("pickupTime") ?? "",
+  ).trim();
+
+  const notes = String(
+    formData.get("notes") ?? "",
+  ).trim();
+
+  if (!customerName || !customerPhone) {
+    setError(
+      "Please enter your name and mobile number.",
+    );
+
+    return;
+  }
+
+  if (
+    paymentMethod === "ONLINE" &&
+    !customerEmail
   ) {
-    event.preventDefault();
+    setError(
+      "Please enter your email for the Stripe payment receipt.",
+    );
 
-    if (!cartLines.length) {
-      setError(
-        "Your cart is empty. Please add an item.",
-      );
+    return;
+  }
 
-      return;
-    }
+  if (!pickupTime) {
+    setError(
+      "Please select your preferred pickup time.",
+    );
 
-    setSubmitting(true);
-    setError("");
+    return;
+  }
 
+  setSubmitting(true);
+  setError("");
+
+  try {
     /*
      * Recheck immediately before creating the order.
      * This handles the kitchen closing while checkout is open.
@@ -528,160 +584,116 @@ export default function OrderingApp({
     const isOpen = await checkKitchenStatus();
 
     if (!isOpen) {
-      setSubmitting(false);
       setCheckout(false);
 
-      setError(
-        kitchenStatus?.closedNote ||
-          "The kitchen has closed and cannot accept this order.",
+      throw new Error(
+        "The kitchen has closed and cannot accept this order.",
       );
+    }
+
+    const response = await fetch("/api/orders", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        customerName,
+        customerPhone,
+        customerEmail:
+          customerEmail || null,
+        pickupTime,
+        notes: notes || null,
+        paymentMethod,
+        lines: cartLines.map((line) => ({
+          itemId:
+            line.type === "MENU_ITEM"
+              ? line.id
+              : undefined,
+
+          specialId:
+            line.type === "SPECIAL"
+              ? line.id
+              : undefined,
+
+          quantity: line.quantity,
+        })),
+      }),
+    });
+
+    const result = (await response
+      .json()
+      .catch(() => null)) as
+      | OrderResponse
+      | null;
+
+    if (!response.ok) {
+      if (result?.code === "KITCHEN_CLOSED") {
+        setKitchenStatus((current) => ({
+          isOpen: false,
+          closedTitle:
+            result.error ||
+            current?.closedTitle ||
+            DEFAULT_CLOSED_TITLE,
+          closedNote:
+            result.message ||
+            current?.closedNote ||
+            DEFAULT_CLOSED_NOTE,
+        }));
+
+        setCheckout(false);
+      }
+
+      throw new Error(
+        result?.message ||
+          result?.error ||
+          "Could not place order.",
+      );
+    }
+
+    if (paymentMethod === "ONLINE") {
+      if (!result?.checkoutUrl) {
+        throw new Error(
+          "Stripe checkout was not created. Check the order API and Stripe settings.",
+        );
+      }
+
+      /*
+       * Stop the recurring kitchen-status request before leaving.
+       * The browser will navigate directly to Stripe.
+       */
+      window.location.assign(result.checkoutUrl);
 
       return;
     }
 
-    const formData = new FormData(
-      event.currentTarget,
+    if (!result?.orderId) {
+      throw new Error(
+        "Order was created without an order ID.",
+      );
+    }
+
+    window.location.assign(
+      `/order-success?id=${encodeURIComponent(
+        result.orderId,
+      )}`,
+    );
+  } catch (caughtError) {
+    console.error(
+      "Order submission failed:",
+      caughtError,
     );
 
-    const customerName = String(
-      formData.get("customerName") || "",
-    ).trim();
+    setError(
+      caughtError instanceof Error
+        ? caughtError.message
+        : "Could not place order.",
+    );
 
-    const customerPhone = String(
-      formData.get("customerPhone") || "",
-    ).trim();
-
-    const customerEmail = String(
-      formData.get("customerEmail") || "",
-    ).trim();
-
-    const pickupTime = String(
-      formData.get("pickupTime") || "",
-    ).trim();
-
-    const notes = String(
-      formData.get("notes") || "",
-    ).trim();
-
-    if (!customerName || !customerPhone) {
-      setError(
-        "Please enter your name and mobile number.",
-      );
-
-      setSubmitting(false);
-      return;
-    }
-
-    if (
-      paymentMethod === "ONLINE" &&
-      !customerEmail
-    ) {
-      setError(
-        "Please enter your email for the Stripe payment receipt.",
-      );
-
-      setSubmitting(false);
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          accept: "application/json",
-        },
-        body: JSON.stringify({
-          customerName,
-          customerPhone,
-          customerEmail:
-            customerEmail || null,
-          pickupTime,
-          notes: notes || null,
-          paymentMethod,
-          lines: cartLines.map((line) => ({
-            itemId:
-              line.type === "MENU_ITEM"
-                ? line.id
-                : undefined,
-
-            specialId:
-              line.type === "SPECIAL"
-                ? line.id
-                : undefined,
-
-            quantity: line.quantity,
-          })),
-        }),
-      });
-
-      const result = (await response
-        .json()
-        .catch(() => null)) as
-        | OrderResponse
-        | null;
-
-      if (!response.ok) {
-        if (
-          result?.code === "KITCHEN_CLOSED"
-        ) {
-          setKitchenStatus((current) => ({
-            isOpen: false,
-            closedTitle:
-              result.error ||
-              current?.closedTitle ||
-              DEFAULT_CLOSED_TITLE,
-            closedNote:
-              result.message ||
-              current?.closedNote ||
-              DEFAULT_CLOSED_NOTE,
-          }));
-
-          setCheckout(false);
-        }
-
-        throw new Error(
-          result?.message ||
-            result?.error ||
-            "Could not place order.",
-        );
-      }
-
-      if (paymentMethod === "ONLINE") {
-        if (!result?.checkoutUrl) {
-          throw new Error(
-            "Stripe checkout was not created. Check the order API and Stripe settings.",
-          );
-        }
-
-        window.location.assign(
-          result.checkoutUrl,
-        );
-
-        return;
-      }
-
-      if (!result?.orderId) {
-        throw new Error(
-          "Order was created without an order ID.",
-        );
-      }
-
-      window.location.assign(
-        `/order-success?id=${encodeURIComponent(
-          result.orderId,
-        )}`,
-      );
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Could not place order.",
-      );
-
-      setSubmitting(false);
-    }
+    setSubmitting(false);
   }
+}
+
 
   return (
     <>
