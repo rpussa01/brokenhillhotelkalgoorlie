@@ -470,7 +470,7 @@ export default function PublicMenu({
                             : [];
 
                         const soldOut =
-                          item.soldOut ===
+                          !item.available ===
                           true;
 
                         const serviceLabel =

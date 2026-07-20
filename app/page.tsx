@@ -120,7 +120,7 @@ export default async function Home() {
   const favouriteItems = foodItems
     .filter(
       (item) =>
-        item.soldOut !== true &&
+        item.available !== true &&
         Boolean(item.imageUrl),
     )
     .slice(0, 3);

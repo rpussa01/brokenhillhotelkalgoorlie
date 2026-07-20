@@ -1146,7 +1146,7 @@ export default function OrderingApp({
                             : [];
 
                         const soldOut =
-                          item.soldOut ===
+                          !item.available ===
                           true;
 
                         const unavailable =

@@ -119,7 +119,7 @@ export default async function MenuPage() {
                           backgroundImage: `url("${item.imageUrl}")`,
                         }}
                       >
-                        {item.soldOut && (
+                        {!item.available && (
                           <span className="venue-menu-sold-out-badge">
                             Sold out
                           </span>
@@ -129,7 +129,7 @@ export default async function MenuPage() {
                       <div className="venue-menu-card-image venue-menu-card-placeholder">
                         <span>BH</span>
 
-                        {item.soldOut && (
+                        {item.available  && (
                           <span className="venue-menu-sold-out-badge">
                             Sold out
                           </span>
