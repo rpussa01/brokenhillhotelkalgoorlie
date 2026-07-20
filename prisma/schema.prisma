@@ -44,33 +44,49 @@ model Settings {
 }
 
 model Category {
-  id        String     @id @default(cuid())
-  name      String     @unique
-  sortOrder Int        @default(0)
-  active    Boolean    @default(true)
-  items     MenuItem[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id           String  @id @default(cuid())
+  name         String
+  description  String?
+  active       Boolean @default(true)
+  displayOrder Int     @default(0)
+
+  items MenuItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model MenuItem {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   description String?
   priceCents  Int
   imageUrl    String?
-  dietary     String[]
-  soldOut     Boolean  @default(false)
-  active      Boolean  @default(true)
-  sortOrder   Int      @default(0)
+
+  featured      Boolean @default(false)
+  chefFavourite Boolean @default(false)
+  popular       Boolean @default(false)
+
+  dietary String[] @default([])
+
+  available  Boolean @default(true)
+  dineInOnly Boolean @default(false)
+  takeaway   Boolean @default(true)
+
+  displayOrder Int @default(0)
 
   categoryId String
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   orderLines OrderLine[] @relation("MenuItemOrderLines")
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([categoryId])
-  @@index([active, soldOut])
+  @@index([available])
+  @@index([featured])
+  @@index([chefFavourite])
 }
 
 model Special {

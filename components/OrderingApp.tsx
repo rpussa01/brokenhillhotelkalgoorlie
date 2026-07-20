@@ -183,9 +183,14 @@ export default function OrderingApp({
   specials,
 }: OrderingAppProps) {
   const [cart, setCart] = useState<Cart>({});
-  const [checkout, setCheckout] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [checkout, setCheckout] =
+    useState(false);
+
+  const [submitting, setSubmitting] =
+    useState(false);
+
   const [error, setError] = useState("");
+
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethod>("ONLINE");
 
@@ -229,7 +234,9 @@ export default function OrderingApp({
 
         const result = (await response
           .json()
-          .catch(() => null)) as KitchenStatus | null;
+          .catch(() => null)) as
+          | KitchenStatus
+          | null;
 
         if (!response.ok || !result) {
           throw new Error(
@@ -237,20 +244,23 @@ export default function OrderingApp({
           );
         }
 
-        setKitchenStatus({
+        const nextStatus: KitchenStatus = {
           isOpen: result.isOpen === true,
           closedTitle:
-            result.closedTitle || DEFAULT_CLOSED_TITLE,
+            result.closedTitle ||
+            DEFAULT_CLOSED_TITLE,
           closedNote:
-            result.closedNote || DEFAULT_CLOSED_NOTE,
+            result.closedNote ||
+            DEFAULT_CLOSED_NOTE,
           updatedAt: result.updatedAt,
-        });
+        };
 
+        setKitchenStatus(nextStatus);
         setKitchenCheckError(false);
 
         return (
           settings.isOrderingOpen &&
-          result.isOpen === true
+          nextStatus.isOpen
         );
       } catch (caughtError) {
         console.error(
@@ -258,11 +268,6 @@ export default function OrderingApp({
           caughtError,
         );
 
-        /*
-         * Fail closed:
-         * if the website cannot confirm the kitchen status,
-         * customers cannot place an order.
-         */
         setKitchenStatus({
           isOpen: false,
           closedTitle:
@@ -294,6 +299,7 @@ export default function OrderingApp({
   useEffect(() => {
     if (kitchenIsClosed && checkout) {
       setCheckout(false);
+
       setError(
         kitchenStatus?.closedNote ||
           DEFAULT_CLOSED_NOTE,
@@ -305,46 +311,55 @@ export default function OrderingApp({
     kitchenStatus?.closedNote,
   ]);
 
-  const activeCategories = useMemo(
-    () =>
-      categories
-        .filter((category) => category.active)
-        .sort(
-          (first, second) =>
-            first.sortOrder - second.sortOrder ||
-            first.name.localeCompare(second.name),
-        ),
-    [categories],
-  );
+  const activeCategories = useMemo(() => {
+    return [...categories]
+      .filter(
+        (category) => category.active !== false,
+      )
+      .sort(
+        (first, second) =>
+          (first.displayOrder ?? 0) -
+            (second.displayOrder ?? 0) ||
+          first.name.localeCompare(second.name),
+      );
+  }, [categories]);
 
-  const availableItems = useMemo(
-    () =>
-      items
-        .filter((item) => item.active)
-        .sort(
-          (first, second) =>
-            first.sortOrder - second.sortOrder ||
-            first.name.localeCompare(second.name),
-        ),
-    [items],
-  );
+  const availableItems = useMemo(() => {
+    return [...items]
+      .filter(
+        (item) =>
+          item.available !== false &&
+          item.takeaway !== false &&
+          item.dineInOnly !== true,
+      )
+      .sort(
+        (first, second) =>
+          (first.displayOrder ?? 0) -
+            (second.displayOrder ?? 0) ||
+          first.name.localeCompare(second.name),
+      );
+  }, [items]);
 
-  const availableSpecials = useMemo(
-    () =>
-      specials.filter(
-        (special) => special.price !== null,
-      ),
-    [specials],
-  );
+  const availableSpecials = useMemo(() => {
+    return specials.filter(
+      (special) =>
+        special.price !== null &&
+        Number.isFinite(special.price),
+    );
+  }, [specials]);
 
   const cartLines = useMemo<CartLine[]>(() => {
     return Object.entries(cart)
       .map(([cartId, quantity]) => {
         if (cartId.startsWith("item:")) {
-          const itemId = cartId.replace("item:", "");
+          const itemId = cartId.replace(
+            "item:",
+            "",
+          );
 
           const item = availableItems.find(
-            (candidate) => candidate.id === itemId,
+            (candidate) =>
+              candidate.id === itemId,
           );
 
           if (!item) {
@@ -367,9 +382,11 @@ export default function OrderingApp({
             "",
           );
 
-          const special = availableSpecials.find(
-            (candidate) => candidate.id === specialId,
-          );
+          const special =
+            availableSpecials.find(
+              (candidate) =>
+                candidate.id === specialId,
+            );
 
           if (
             !special ||
@@ -393,29 +410,30 @@ export default function OrderingApp({
         return null;
       })
       .filter(
-        (line): line is CartLine => line !== null,
+        (line): line is CartLine =>
+          line !== null,
       );
-  }, [cart, availableItems, availableSpecials]);
+  }, [
+    cart,
+    availableItems,
+    availableSpecials,
+  ]);
 
-  const total = useMemo(
-    () =>
-      cartLines.reduce(
-        (sum, line) =>
-          sum +
-          line.priceCents * line.quantity,
-        0,
-      ),
-    [cartLines],
-  );
+  const total = useMemo(() => {
+    return cartLines.reduce(
+      (sum, line) =>
+        sum +
+        line.priceCents * line.quantity,
+      0,
+    );
+  }, [cartLines]);
 
-  const itemCount = useMemo(
-    () =>
-      cartLines.reduce(
-        (sum, line) => sum + line.quantity,
-        0,
-      ),
-    [cartLines],
-  );
+  const itemCount = useMemo(() => {
+    return cartLines.reduce(
+      (sum, line) => sum + line.quantity,
+      0,
+    );
+  }, [cartLines]);
 
   const firstPickup = useMemo(() => {
     const date = new Date(
@@ -482,12 +500,12 @@ export default function OrderingApp({
 
     setCheckingKitchen(true);
 
-    const isOpen = await checkKitchenStatus();
+    const isOpen =
+      await checkKitchenStatus();
 
     if (!isOpen) {
       setError(
-        kitchenStatus?.closedNote ||
-          "Online ordering is currently closed.",
+        "Online ordering is currently closed.",
       );
 
       return;
@@ -504,196 +522,200 @@ export default function OrderingApp({
     setCheckout(false);
     setError("");
   }
-async function submitOrder(
-  event: FormEvent<HTMLFormElement>,
-) {
-  event.preventDefault();
 
-  /*
-   * Capture the HTML form and its values immediately.
-   *
-   * Do not use event.currentTarget after an await because the
-   * event target may no longer be available as an HTMLFormElement.
-   */
-  const form = event.currentTarget;
-  const formData = new FormData(form);
-
-  if (!cartLines.length) {
-    setError(
-      "Your cart is empty. Please add an item.",
-    );
-
-    return;
-  }
-
-  const customerName = String(
-    formData.get("customerName") ?? "",
-  ).trim();
-
-  const customerPhone = String(
-    formData.get("customerPhone") ?? "",
-  ).trim();
-
-  const customerEmail = String(
-    formData.get("customerEmail") ?? "",
-  ).trim();
-
-  const pickupTime = String(
-    formData.get("pickupTime") ?? "",
-  ).trim();
-
-  const notes = String(
-    formData.get("notes") ?? "",
-  ).trim();
-
-  if (!customerName || !customerPhone) {
-    setError(
-      "Please enter your name and mobile number.",
-    );
-
-    return;
-  }
-
-  if (
-    paymentMethod === "ONLINE" &&
-    !customerEmail
+  async function submitOrder(
+    event: FormEvent<HTMLFormElement>,
   ) {
-    setError(
-      "Please enter your email for the Stripe payment receipt.",
-    );
+    event.preventDefault();
 
-    return;
-  }
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
-  if (!pickupTime) {
-    setError(
-      "Please select your preferred pickup time.",
-    );
-
-    return;
-  }
-
-  setSubmitting(true);
-  setError("");
-
-  try {
-    /*
-     * Recheck immediately before creating the order.
-     * This handles the kitchen closing while checkout is open.
-     */
-    const isOpen = await checkKitchenStatus();
-
-    if (!isOpen) {
-      setCheckout(false);
-
-      throw new Error(
-        "The kitchen has closed and cannot accept this order.",
+    if (!cartLines.length) {
+      setError(
+        "Your cart is empty. Please add an item.",
       );
-    }
-
-    const response = await fetch("/api/orders", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({
-        customerName,
-        customerPhone,
-        customerEmail:
-          customerEmail || null,
-        pickupTime,
-        notes: notes || null,
-        paymentMethod,
-        lines: cartLines.map((line) => ({
-          itemId:
-            line.type === "MENU_ITEM"
-              ? line.id
-              : undefined,
-
-          specialId:
-            line.type === "SPECIAL"
-              ? line.id
-              : undefined,
-
-          quantity: line.quantity,
-        })),
-      }),
-    });
-
-    const result = (await response
-      .json()
-      .catch(() => null)) as
-      | OrderResponse
-      | null;
-
-    if (!response.ok) {
-      if (result?.code === "KITCHEN_CLOSED") {
-        setKitchenStatus((current) => ({
-          isOpen: false,
-          closedTitle:
-            result.error ||
-            current?.closedTitle ||
-            DEFAULT_CLOSED_TITLE,
-          closedNote:
-            result.message ||
-            current?.closedNote ||
-            DEFAULT_CLOSED_NOTE,
-        }));
-
-        setCheckout(false);
-      }
-
-      throw new Error(
-        result?.message ||
-          result?.error ||
-          "Could not place order.",
-      );
-    }
-
-    if (paymentMethod === "ONLINE") {
-      if (!result?.checkoutUrl) {
-        throw new Error(
-          "Stripe checkout was not created. Check the order API and Stripe settings.",
-        );
-      }
-
-      /*
-       * Stop the recurring kitchen-status request before leaving.
-       * The browser will navigate directly to Stripe.
-       */
-      window.location.assign(result.checkoutUrl);
 
       return;
     }
 
-    if (!result?.orderId) {
-      throw new Error(
-        "Order was created without an order ID.",
+    const customerName = String(
+      formData.get("customerName") ?? "",
+    ).trim();
+
+    const customerPhone = String(
+      formData.get("customerPhone") ?? "",
+    ).trim();
+
+    const customerEmail = String(
+      formData.get("customerEmail") ?? "",
+    ).trim();
+
+    const pickupTime = String(
+      formData.get("pickupTime") ?? "",
+    ).trim();
+
+    const notes = String(
+      formData.get("notes") ?? "",
+    ).trim();
+
+    if (!customerName || !customerPhone) {
+      setError(
+        "Please enter your name and mobile number.",
       );
+
+      return;
     }
 
-    window.location.assign(
-      `/order-success?id=${encodeURIComponent(
-        result.orderId,
-      )}`,
-    );
-  } catch (caughtError) {
-    console.error(
-      "Order submission failed:",
-      caughtError,
-    );
+    if (
+      paymentMethod === "ONLINE" &&
+      !customerEmail
+    ) {
+      setError(
+        "Please enter your email for the Stripe payment receipt.",
+      );
 
-    setError(
-      caughtError instanceof Error
-        ? caughtError.message
-        : "Could not place order.",
-    );
+      return;
+    }
 
-    setSubmitting(false);
+    if (!pickupTime) {
+      setError(
+        "Please select your preferred pickup time.",
+      );
+
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const isOpen =
+        await checkKitchenStatus();
+
+      if (!isOpen) {
+        setCheckout(false);
+
+        throw new Error(
+          "The kitchen has closed and cannot accept this order.",
+        );
+      }
+
+      const response = await fetch(
+        "/api/orders",
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({
+            customerName,
+            customerPhone,
+            customerEmail:
+              customerEmail || null,
+            pickupTime,
+            notes: notes || null,
+            paymentMethod,
+            lines: cartLines.map(
+              (line) => ({
+                itemId:
+                  line.type ===
+                  "MENU_ITEM"
+                    ? line.id
+                    : undefined,
+
+                specialId:
+                  line.type ===
+                  "SPECIAL"
+                    ? line.id
+                    : undefined,
+
+                quantity: line.quantity,
+              }),
+            ),
+          }),
+        },
+      );
+
+      const result = (await response
+        .json()
+        .catch(() => null)) as
+        | OrderResponse
+        | null;
+
+      if (!response.ok) {
+        if (
+          result?.code ===
+          "KITCHEN_CLOSED"
+        ) {
+          setKitchenStatus(
+            (current) => ({
+              isOpen: false,
+              closedTitle:
+                result.error ||
+                current?.closedTitle ||
+                DEFAULT_CLOSED_TITLE,
+              closedNote:
+                result.message ||
+                current?.closedNote ||
+                DEFAULT_CLOSED_NOTE,
+            }),
+          );
+
+          setCheckout(false);
+        }
+
+        throw new Error(
+          result?.message ||
+            result?.error ||
+            "Could not place order.",
+        );
+      }
+
+      if (
+        paymentMethod === "ONLINE"
+      ) {
+        if (!result?.checkoutUrl) {
+          throw new Error(
+            "Stripe checkout was not created. Check the order API and Stripe settings.",
+          );
+        }
+
+        window.location.assign(
+          result.checkoutUrl,
+        );
+
+        return;
+      }
+
+      if (!result?.orderId) {
+        throw new Error(
+          "Order was created without an order ID.",
+        );
+      }
+
+      window.location.assign(
+        `/order-success?id=${encodeURIComponent(
+          result.orderId,
+        )}`,
+      );
+    } catch (caughtError) {
+      console.error(
+        "Order submission failed:",
+        caughtError,
+      );
+
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not place order.",
+      );
+
+      setSubmitting(false);
+    }
   }
-}
-
 
   return (
     <>
@@ -703,13 +725,17 @@ async function submitOrder(
 
           <span>
             BROKEN HILL
-            <small>HOTEL • EST. 1899</small>
+            <small>
+              HOTEL • EST. 1899
+            </small>
           </span>
         </a>
 
         <nav className="nav">
           <a href="/">Home</a>
-          <a href="/admin">Staff login</a>
+          <a href="/admin">
+            Staff login
+          </a>
 
           <a
             className="button"
@@ -748,12 +774,16 @@ async function submitOrder(
 
           <div
             className={`open-card ${
-              kitchenIsClosed ? "is-closed" : ""
+              kitchenIsClosed
+                ? "is-closed"
+                : ""
             }`}
           >
             <span
               className={`dot ${
-                kitchenIsOpen ? "" : "closed"
+                kitchenIsOpen
+                  ? ""
+                  : "closed"
               }`}
             />
 
@@ -780,7 +810,10 @@ async function submitOrder(
                 type="button"
                 className="status-retry-button"
                 onClick={() => {
-                  setCheckingKitchen(true);
+                  setCheckingKitchen(
+                    true,
+                  );
+
                   void checkKitchenStatus();
                 }}
               >
@@ -801,7 +834,10 @@ async function submitOrder(
           </div>
 
           <div>
-            <strong>{closedTitle}</strong>
+            <strong>
+              {closedTitle}
+            </strong>
+
             <p>{closedNote}</p>
           </div>
 
@@ -809,7 +845,10 @@ async function submitOrder(
             <button
               type="button"
               onClick={() => {
-                setCheckingKitchen(true);
+                setCheckingKitchen(
+                  true,
+                );
+
                 void checkKitchenStatus();
               }}
               disabled={checkingKitchen}
@@ -827,7 +866,8 @@ async function submitOrder(
       )}
 
       <div className="category-tabs">
-        {availableSpecials.length > 0 && (
+        {availableSpecials.length >
+          0 && (
           <button
             type="button"
             className="active"
@@ -850,7 +890,8 @@ async function submitOrder(
             <button
               type="button"
               className={
-                availableSpecials.length === 0 &&
+                availableSpecials.length ===
+                  0 &&
                 index === 0
                   ? "active"
                   : ""
@@ -858,7 +899,9 @@ async function submitOrder(
               key={category.id}
               onClick={() =>
                 document
-                  .getElementById(category.id)
+                  .getElementById(
+                    category.id,
+                  )
                   ?.scrollIntoView({
                     behavior: "smooth",
                   })
@@ -878,7 +921,8 @@ async function submitOrder(
         }`}
       >
         <div className="order-menu-column">
-          {availableSpecials.length > 0 && (
+          {availableSpecials.length >
+            0 && (
             <section
               className="category-section order-specials-section"
               id="order-specials"
@@ -889,12 +933,17 @@ async function submitOrder(
                     LIMITED TIME
                   </div>
 
-                  <h2>Current specials</h2>
+                  <h2>
+                    Current specials
+                  </h2>
                 </div>
 
                 <span>
-                  {availableSpecials.length}{" "}
-                  {availableSpecials.length === 1
+                  {
+                    availableSpecials.length
+                  }{" "}
+                  {availableSpecials.length ===
+                  1
                     ? "special"
                     : "specials"}{" "}
                   available
@@ -905,6 +954,7 @@ async function submitOrder(
                 {availableSpecials.map(
                   (special) => {
                     const cartId = `special:${special.id}`;
+
                     const quantity =
                       cart[cartId] || 0;
 
@@ -927,13 +977,17 @@ async function submitOrder(
                           <div className="order-special-labels">
                             {special.day && (
                               <span>
-                                {special.day}
+                                {
+                                  special.day
+                                }
                               </span>
                             )}
 
                             {special.badge && (
                               <span>
-                                {special.badge}
+                                {
+                                  special.badge
+                                }
                               </span>
                             )}
                           </div>
@@ -947,7 +1001,11 @@ async function submitOrder(
 
                         <div className="order-special-content">
                           <div>
-                            <h3>{special.title}</h3>
+                            <h3>
+                              {
+                                special.title
+                              }
+                            </h3>
 
                             {special.description && (
                               <p>
@@ -963,7 +1021,8 @@ async function submitOrder(
                               {money(
                                 Math.round(
                                   (special.price ||
-                                    0) * 100,
+                                    0) *
+                                    100,
                                 ),
                               )}
                             </strong>
@@ -984,7 +1043,9 @@ async function submitOrder(
                                 </button>
 
                                 <span>
-                                  {quantity}
+                                  {
+                                    quantity
+                                  }
                                 </span>
 
                                 <button
@@ -1031,180 +1092,215 @@ async function submitOrder(
             </section>
           )}
 
-          {activeCategories.map((category) => {
-            const categoryItems =
-              availableItems.filter(
-                (item) =>
-                  item.categoryId === category.id,
-              );
+          {activeCategories.map(
+            (category) => {
+              const categoryItems =
+                availableItems.filter(
+                  (item) =>
+                    item.categoryId ===
+                    category.id,
+                );
 
-            if (!categoryItems.length) {
-              return null;
-            }
+              if (
+                !categoryItems.length
+              ) {
+                return null;
+              }
 
-            return (
-              <section
-                className="category-section"
-                id={category.id}
-                key={category.id}
-              >
-                <div className="menu-category-heading">
-                  <h2>{category.name}</h2>
+              return (
+                <section
+                  className="category-section"
+                  id={category.id}
+                  key={category.id}
+                >
+                  <div className="menu-category-heading">
+                    <h2>
+                      {category.name}
+                    </h2>
 
-                  <span>
-                    {categoryItems.length}{" "}
-                    {categoryItems.length === 1
-                      ? "item"
-                      : "items"}
-                  </span>
-                </div>
+                    <span>
+                      {
+                        categoryItems.length
+                      }{" "}
+                      {categoryItems.length ===
+                      1
+                        ? "item"
+                        : "items"}
+                    </span>
+                  </div>
 
-                <div className="menu-grid menu-grid-visual">
-                  {categoryItems.map((item) => {
-                    const cartId = `item:${item.id}`;
+                  <div className="menu-grid menu-grid-visual">
+                    {categoryItems.map(
+                      (item) => {
+                        const cartId = `item:${item.id}`;
 
-                    const quantity =
-                      cart[cartId] || 0;
+                        const quantity =
+                          cart[cartId] ||
+                          0;
 
-                    const dietary = Array.isArray(
-                      item.dietary,
-                    )
-                      ? item.dietary
-                      : [];
+                        const dietary =
+                          Array.isArray(
+                            item.dietary,
+                          )
+                            ? item.dietary
+                            : [];
 
-                    const unavailable =
-                      item.soldOut ||
-                      !kitchenIsOpen;
+                        const soldOut =
+                          item.soldOut ===
+                          true;
 
-                    return (
-                      <article
-                        className={`menu-card menu-card-visual ${
-                          item.soldOut
-                            ? "sold"
-                            : ""
-                        } ${
-                          !kitchenIsOpen
-                            ? "ordering-closed-card"
-                            : ""
-                        }`}
-                        key={item.id}
-                      >
-                        <div
-                          className="menu-card-image"
-                          style={{
-                            backgroundImage: `url("${
-                              item.imageUrl ||
-                              MENU_FALLBACK_IMAGE
-                            }")`,
-                          }}
-                        >
-                          <div className="menu-card-image-shade" />
+                        const unavailable =
+                          soldOut ||
+                          !kitchenIsOpen;
 
-                          {item.soldOut && (
-                            <span className="menu-sold-badge">
-                              SOLD OUT
-                            </span>
-                          )}
+                        return (
+                          <article
+                            className={`menu-card menu-card-visual ${
+                              soldOut
+                                ? "sold"
+                                : ""
+                            } ${
+                              !kitchenIsOpen
+                                ? "ordering-closed-card"
+                                : ""
+                            }`}
+                            key={item.id}
+                          >
+                            <div
+                              className="menu-card-image"
+                              style={{
+                                backgroundImage: `url("${
+                                  item.imageUrl ||
+                                  MENU_FALLBACK_IMAGE
+                                }")`,
+                              }}
+                            >
+                              <div className="menu-card-image-shade" />
 
-                          {!item.soldOut &&
-                            kitchenIsClosed && (
-                              <span className="ordering-closed-image-badge">
-                                Ordering closed
-                              </span>
-                            )}
-
-                          {dietary.length > 0 && (
-                            <div className="menu-card-image-tags">
-                              {dietary.map((tag) => (
-                                <span key={tag}>
-                                  {tag}
+                              {soldOut && (
+                                <span className="menu-sold-badge">
+                                  SOLD OUT
                                 </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="menu-card-body">
-                          <div>
-                            <h3>{item.name}</h3>
-
-                            <p>
-                              {item.description ||
-                                "A favourite from the Broken Hill Hotel kitchen."}
-                            </p>
-                          </div>
-
-                          <div className="menu-bottom">
-                            <strong>
-                              {money(
-                                item.priceCents,
                               )}
-                            </strong>
 
-                            {quantity > 0 ? (
-                              <div className="menu-card-quantity">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    change(
-                                      cartId,
-                                      -1,
-                                    )
-                                  }
-                                  aria-label={`Remove one ${item.name}`}
-                                >
-                                  −
-                                </button>
+                              {!soldOut &&
+                                kitchenIsClosed && (
+                                  <span className="ordering-closed-image-badge">
+                                    Ordering
+                                    closed
+                                  </span>
+                                )}
 
-                                <span>
-                                  {quantity}
-                                </span>
+                              {dietary.length >
+                                0 && (
+                                <div className="menu-card-image-tags">
+                                  {dietary.map(
+                                    (tag) => (
+                                      <span
+                                        key={
+                                          tag
+                                        }
+                                      >
+                                        {
+                                          tag
+                                        }
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              )}
+                            </div>
 
-                                <button
-                                  type="button"
-                                  disabled={
-                                    unavailable
+                            <div className="menu-card-body">
+                              <div>
+                                <h3>
+                                  {
+                                    item.name
                                   }
-                                  onClick={() =>
-                                    change(
-                                      cartId,
-                                      1,
-                                    )
-                                  }
-                                  aria-label={`Add another ${item.name}`}
-                                >
-                                  +
-                                </button>
+                                </h3>
+
+                                <p>
+                                  {item.description ||
+                                    "A favourite from the Broken Hill Hotel kitchen."}
+                                </p>
                               </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className="round"
-                                disabled={
-                                  unavailable
-                                }
-                                onClick={() =>
-                                  change(
-                                    cartId,
-                                    1,
-                                  )
-                                }
-                                aria-label={`Add ${item.name} to cart`}
-                              >
-                                {item.soldOut
-                                  ? "×"
-                                  : "+"}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
+
+                              <div className="menu-bottom">
+                                <strong>
+                                  {money(
+                                    item.priceCents,
+                                  )}
+                                </strong>
+
+                                {quantity >
+                                0 ? (
+                                  <div className="menu-card-quantity">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        change(
+                                          cartId,
+                                          -1,
+                                        )
+                                      }
+                                      aria-label={`Remove one ${item.name}`}
+                                    >
+                                      −
+                                    </button>
+
+                                    <span>
+                                      {
+                                        quantity
+                                      }
+                                    </span>
+
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        unavailable
+                                      }
+                                      onClick={() =>
+                                        change(
+                                          cartId,
+                                          1,
+                                        )
+                                      }
+                                      aria-label={`Add another ${item.name}`}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="round"
+                                    disabled={
+                                      unavailable
+                                    }
+                                    onClick={() =>
+                                      change(
+                                        cartId,
+                                        1,
+                                      )
+                                    }
+                                    aria-label={`Add ${item.name} to cart`}
+                                  >
+                                    {soldOut
+                                      ? "×"
+                                      : "+"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      },
+                    )}
+                  </div>
+                </section>
+              );
+            },
+          )}
         </div>
 
         <aside className="cart">
@@ -1251,8 +1347,12 @@ async function submitOrder(
             <button
               type="button"
               className="text-button"
-              onClick={() => setCart({})}
-              disabled={!cartLines.length}
+              onClick={() =>
+                setCart({})
+              }
+              disabled={
+                !cartLines.length
+              }
             >
               Clear
             </button>
@@ -1272,7 +1372,9 @@ async function submitOrder(
               >
                 <div className="cart-line-top">
                   <div>
-                    <h4>{line.name}</h4>
+                    <h4>
+                      {line.name}
+                    </h4>
 
                     {line.type ===
                       "SPECIAL" && (
@@ -1294,19 +1396,29 @@ async function submitOrder(
                   <button
                     type="button"
                     onClick={() =>
-                      change(line.cartId, -1)
+                      change(
+                        line.cartId,
+                        -1,
+                      )
                     }
                   >
                     −
                   </button>
 
-                  <span>{line.quantity}</span>
+                  <span>
+                    {line.quantity}
+                  </span>
 
                   <button
                     type="button"
-                    disabled={!kitchenIsOpen}
+                    disabled={
+                      !kitchenIsOpen
+                    }
                     onClick={() =>
-                      change(line.cartId, 1)
+                      change(
+                        line.cartId,
+                        1,
+                      )
                     }
                   >
                     +
@@ -1324,7 +1436,9 @@ async function submitOrder(
 
             <div className="total-line grand">
               <span>Total</span>
-              <span>{money(total)}</span>
+              <span>
+                {money(total)}
+              </span>
             </div>
           </div>
 
@@ -1332,13 +1446,17 @@ async function submitOrder(
             <LockIcon />
 
             <span>
-              Secure online card payment available
+              Secure online card payment
+              available
             </span>
           </div>
 
           {kitchenIsClosed && (
             <div className="cart-closed-message">
-              <strong>{closedTitle}</strong>
+              <strong>
+                {closedTitle}
+              </strong>
+
               <p>{closedNote}</p>
             </div>
           )}
@@ -1359,459 +1477,550 @@ async function submitOrder(
               ? "Checking kitchen…"
               : !kitchenIsOpen
                 ? "Kitchen closed"
-                : `Checkout • ${money(total)}`}
+                : `Checkout • ${money(
+                    total,
+                  )}`}
           </button>
         </aside>
       </main>
 
-      {checkout && kitchenIsOpen && (
-        <div
-          className="modal-backdrop checkout-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
-              closeCheckout();
-            }
-          }}
-        >
+      {checkout &&
+        kitchenIsOpen && (
           <div
-            className="new-checkout"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="checkout-heading"
+            className="modal-backdrop checkout-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (
+                event.target ===
+                event.currentTarget
+              ) {
+                closeCheckout();
+              }
+            }}
           >
-            <header className="new-checkout-header">
-              <div className="new-checkout-brand">
-                <span>BH</span>
+            <div
+              className="new-checkout"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="checkout-heading"
+            >
+              <header className="new-checkout-header">
+                <div className="new-checkout-brand">
+                  <span>BH</span>
 
-                <div>
-                  <small>
-                    BROKEN HILL HOTEL
-                  </small>
+                  <div>
+                    <small>
+                      BROKEN HILL HOTEL
+                    </small>
 
-                  <h2 id="checkout-heading">
-                    Pickup checkout
-                  </h2>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="new-checkout-close"
-                onClick={closeCheckout}
-                disabled={submitting}
-                aria-label="Close checkout"
-              >
-                Close <span>×</span>
-              </button>
-            </header>
-
-            <form onSubmit={submitOrder}>
-              <div className="new-checkout-content">
-                <div className="new-checkout-main">
-                  <section className="checkout-step">
-                    <div className="checkout-step-header">
-                      <span className="checkout-step-icon">
-                        <ContactIcon />
-                      </span>
-
-                      <div>
-                        <small>STEP 1</small>
-                        <h3>Contact details</h3>
-                      </div>
-                    </div>
-
-                    <div className="checkout-fields">
-                      <div className="checkout-input">
-                        <label htmlFor="customerName">
-                          Name
-                        </label>
-
-                        <input
-                          id="customerName"
-                          name="customerName"
-                          autoComplete="name"
-                          placeholder="Your full name"
-                          disabled={submitting}
-                          required
-                        />
-                      </div>
-
-                      <div className="checkout-input">
-                        <label htmlFor="customerPhone">
-                          Mobile
-                        </label>
-
-                        <input
-                          id="customerPhone"
-                          name="customerPhone"
-                          type="tel"
-                          inputMode="tel"
-                          autoComplete="tel"
-                          placeholder="04xx xxx xxx"
-                          disabled={submitting}
-                          required
-                        />
-                      </div>
-
-                      <div className="checkout-input full">
-                        <label htmlFor="customerEmail">
-                          Email
-                          {paymentMethod === "PICKUP"
-                            ? " (optional)"
-                            : ""}
-                        </label>
-
-                        <input
-                          id="customerEmail"
-                          name="customerEmail"
-                          type="email"
-                          inputMode="email"
-                          autoComplete="email"
-                          placeholder="name@example.com"
-                          disabled={submitting}
-                          required={
-                            paymentMethod ===
-                            "ONLINE"
-                          }
-                        />
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="checkout-step">
-                    <div className="checkout-step-header">
-                      <span className="checkout-step-icon">
-                        <ClockIcon />
-                      </span>
-
-                      <div>
-                        <small>STEP 2</small>
-                        <h3>Pickup time</h3>
-                      </div>
-                    </div>
-
-                    <div className="checkout-step-body">
-                      <div className="checkout-input">
-                        <label htmlFor="pickupTime">
-                          Preferred pickup time
-                        </label>
-
-                        <input
-                          id="pickupTime"
-                          name="pickupTime"
-                          type="datetime-local"
-                          min={firstPickup}
-                          defaultValue={firstPickup}
-                          disabled={submitting}
-                          required
-                        />
-                      </div>
-
-                      <p className="checkout-help">
-                        Typical preparation time is{" "}
-                        {settings.pickupMinutes} minutes.
-                      </p>
-                    </div>
-                  </section>
-
-                  <section className="checkout-step">
-                    <div className="checkout-step-header">
-                      <span className="checkout-step-icon">
-                        <CardIcon />
-                      </span>
-
-                      <div>
-                        <small>STEP 3</small>
-                        <h3>Payment method</h3>
-                      </div>
-                    </div>
-
-                    <div className="checkout-payment-list">
-                      <label
-                        className={`checkout-payment-option ${
-                          paymentMethod ===
-                          "ONLINE"
-                            ? "selected"
-                            : ""
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="paymentSelection"
-                          value="ONLINE"
-                          checked={
-                            paymentMethod ===
-                            "ONLINE"
-                          }
-                          onChange={() => {
-                            setPaymentMethod(
-                              "ONLINE",
-                            );
-
-                            setError("");
-                          }}
-                          disabled={submitting}
-                        />
-
-                        <span className="checkout-payment-check" />
-
-                        <span className="checkout-payment-copy">
-                          <span className="checkout-payment-title">
-                            <strong>
-                              Pay online
-                            </strong>
-
-                            <span>
-                              Recommended
-                            </span>
-                          </span>
-
-                          <small>
-                            Pay securely by card
-                            using Stripe.
-                          </small>
-                        </span>
-                      </label>
-
-                      <label
-                        className={`checkout-payment-option ${
-                          paymentMethod ===
-                          "PICKUP"
-                            ? "selected"
-                            : ""
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="paymentSelection"
-                          value="PICKUP"
-                          checked={
-                            paymentMethod ===
-                            "PICKUP"
-                          }
-                          onChange={() => {
-                            setPaymentMethod(
-                              "PICKUP",
-                            );
-
-                            setError("");
-                          }}
-                          disabled={submitting}
-                        />
-
-                        <span className="checkout-payment-check" />
-
-                        <span className="checkout-payment-copy">
-                          <span className="checkout-payment-title">
-                            <strong>
-                              Pay at pickup
-                            </strong>
-                          </span>
-
-                          <small>
-                            Pay at the hotel when
-                            collecting your order.
-                          </small>
-                        </span>
-                      </label>
-                    </div>
-
-                    {paymentMethod ===
-                      "ONLINE" && (
-                      <div className="checkout-stripe-note">
-                        <LockIcon />
-
-                        <div>
-                          <strong>
-                            Secure Stripe payment
-                          </strong>
-
-                          <p>
-                            You will be redirected
-                            to Stripe to enter your
-                            card details.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </section>
-
-                  <section className="checkout-step">
-                    <div className="checkout-step-header">
-                      <span className="checkout-step-icon">
-                        <NoteIcon />
-                      </span>
-
-                      <div>
-                        <small>OPTIONAL</small>
-                        <h3>Order comments</h3>
-                      </div>
-                    </div>
-
-                    <div className="checkout-step-body">
-                      <div className="checkout-input">
-                        <label htmlFor="notes">
-                          Allergies, requests or
-                          pickup instructions
-                        </label>
-
-                        <textarea
-                          id="notes"
-                          name="notes"
-                          rows={4}
-                          placeholder="Add a note for the kitchen"
-                          disabled={submitting}
-                        />
-                      </div>
-                    </div>
-                  </section>
-                </div>
-
-                <aside className="checkout-order-summary">
-                  <div className="checkout-summary-heading">
-                    <div>
-                      <small>YOUR ORDER</small>
-                      <h3>Pickup summary</h3>
-                    </div>
-
-                    <span>
-                      {itemCount}{" "}
-                      {itemCount === 1
-                        ? "item"
-                        : "items"}
-                    </span>
+                    <h2 id="checkout-heading">
+                      Pickup checkout
+                    </h2>
                   </div>
-
-                  <div className="checkout-summary-lines">
-                    {cartLines.map((line) => (
-                      <div
-                        className="checkout-summary-line"
-                        key={line.cartId}
-                      >
-                        <strong>
-                          {line.quantity}×
-                        </strong>
-
-                        <div>
-                          <span>{line.name}</span>
-
-                          {line.type ===
-                            "SPECIAL" && (
-                            <small>
-                              Special
-                            </small>
-                          )}
-                        </div>
-
-                        <b>
-                          {money(
-                            line.priceCents *
-                              line.quantity,
-                          )}
-                        </b>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="checkout-summary-totals">
-                    <div>
-                      <span>Subtotal</span>
-                      <strong>
-                        {money(total)}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>Pickup</span>
-                      <strong>Free</strong>
-                    </div>
-
-                    <div className="checkout-summary-grand">
-                      <span>Total</span>
-                      <strong>
-                        {money(total)}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div className="checkout-summary-status">
-                    <span className="open" />
-
-                    <div>
-                      <strong>
-                        Kitchen open
-                      </strong>
-
-                      <small>
-                        Typical pickup:{" "}
-                        {
-                          settings.pickupMinutes
-                        }{" "}
-                        minutes
-                      </small>
-                    </div>
-                  </div>
-
-                  <div className="checkout-summary-secure">
-                    <LockIcon />
-                    Secure payment powered by Stripe
-                  </div>
-                </aside>
-              </div>
-
-              {error && (
-                <div
-                  className="new-checkout-error"
-                  role="alert"
-                >
-                  {error}
-                </div>
-              )}
-
-              <footer className="new-checkout-footer">
-                <div>
-                  <p>
-                    By placing this order, you
-                    confirm the order and pickup
-                    details are correct.
-                  </p>
                 </div>
 
                 <button
-                  type="submit"
-                  disabled={
-                    submitting ||
-                    !kitchenIsOpen
+                  type="button"
+                  className="new-checkout-close"
+                  onClick={
+                    closeCheckout
                   }
+                  disabled={submitting}
+                  aria-label="Close checkout"
                 >
-                  <span>
-                    <small>TOTAL</small>
-                    <strong>
-                      {money(total)}
-                    </strong>
-                  </span>
-
-                  <b>
-                    {submitting
-                      ? paymentMethod ===
-                        "ONLINE"
-                        ? "Opening Stripe…"
-                        : "Placing order…"
-                      : paymentMethod ===
-                          "ONLINE"
-                        ? "Continue to secure payment"
-                        : "Place pickup order now"}
-                  </b>
+                  Close <span>×</span>
                 </button>
-              </footer>
-            </form>
+              </header>
+
+              <form
+                onSubmit={submitOrder}
+              >
+                <div className="new-checkout-content">
+                  <div className="new-checkout-main">
+                    <section className="checkout-step">
+                      <div className="checkout-step-header">
+                        <span className="checkout-step-icon">
+                          <ContactIcon />
+                        </span>
+
+                        <div>
+                          <small>
+                            STEP 1
+                          </small>
+
+                          <h3>
+                            Contact details
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="checkout-fields">
+                        <div className="checkout-input">
+                          <label htmlFor="customerName">
+                            Name
+                          </label>
+
+                          <input
+                            id="customerName"
+                            name="customerName"
+                            autoComplete="name"
+                            placeholder="Your full name"
+                            disabled={
+                              submitting
+                            }
+                            required
+                          />
+                        </div>
+
+                        <div className="checkout-input">
+                          <label htmlFor="customerPhone">
+                            Mobile
+                          </label>
+
+                          <input
+                            id="customerPhone"
+                            name="customerPhone"
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="tel"
+                            placeholder="04xx xxx xxx"
+                            disabled={
+                              submitting
+                            }
+                            required
+                          />
+                        </div>
+
+                        <div className="checkout-input full">
+                          <label htmlFor="customerEmail">
+                            Email
+                            {paymentMethod ===
+                            "PICKUP"
+                              ? " (optional)"
+                              : ""}
+                          </label>
+
+                          <input
+                            id="customerEmail"
+                            name="customerEmail"
+                            type="email"
+                            inputMode="email"
+                            autoComplete="email"
+                            placeholder="name@example.com"
+                            disabled={
+                              submitting
+                            }
+                            required={
+                              paymentMethod ===
+                              "ONLINE"
+                            }
+                          />
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="checkout-step">
+                      <div className="checkout-step-header">
+                        <span className="checkout-step-icon">
+                          <ClockIcon />
+                        </span>
+
+                        <div>
+                          <small>
+                            STEP 2
+                          </small>
+
+                          <h3>
+                            Pickup time
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="checkout-step-body">
+                        <div className="checkout-input">
+                          <label htmlFor="pickupTime">
+                            Preferred pickup
+                            time
+                          </label>
+
+                          <input
+                            id="pickupTime"
+                            name="pickupTime"
+                            type="datetime-local"
+                            min={
+                              firstPickup
+                            }
+                            defaultValue={
+                              firstPickup
+                            }
+                            disabled={
+                              submitting
+                            }
+                            required
+                          />
+                        </div>
+
+                        <p className="checkout-help">
+                          Typical preparation
+                          time is{" "}
+                          {
+                            settings.pickupMinutes
+                          }{" "}
+                          minutes.
+                        </p>
+                      </div>
+                    </section>
+
+                    <section className="checkout-step">
+                      <div className="checkout-step-header">
+                        <span className="checkout-step-icon">
+                          <CardIcon />
+                        </span>
+
+                        <div>
+                          <small>
+                            STEP 3
+                          </small>
+
+                          <h3>
+                            Payment method
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="checkout-payment-list">
+                        <label
+                          className={`checkout-payment-option ${
+                            paymentMethod ===
+                            "ONLINE"
+                              ? "selected"
+                              : ""
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="paymentSelection"
+                            value="ONLINE"
+                            checked={
+                              paymentMethod ===
+                              "ONLINE"
+                            }
+                            onChange={() => {
+                              setPaymentMethod(
+                                "ONLINE",
+                              );
+
+                              setError("");
+                            }}
+                            disabled={
+                              submitting
+                            }
+                          />
+
+                          <span className="checkout-payment-check" />
+
+                          <span className="checkout-payment-copy">
+                            <span className="checkout-payment-title">
+                              <strong>
+                                Pay online
+                              </strong>
+
+                              <span>
+                                Recommended
+                              </span>
+                            </span>
+
+                            <small>
+                              Pay securely by
+                              card using Stripe.
+                            </small>
+                          </span>
+                        </label>
+
+                        <label
+                          className={`checkout-payment-option ${
+                            paymentMethod ===
+                            "PICKUP"
+                              ? "selected"
+                              : ""
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="paymentSelection"
+                            value="PICKUP"
+                            checked={
+                              paymentMethod ===
+                              "PICKUP"
+                            }
+                            onChange={() => {
+                              setPaymentMethod(
+                                "PICKUP",
+                              );
+
+                              setError("");
+                            }}
+                            disabled={
+                              submitting
+                            }
+                          />
+
+                          <span className="checkout-payment-check" />
+
+                          <span className="checkout-payment-copy">
+                            <span className="checkout-payment-title">
+                              <strong>
+                                Pay at pickup
+                              </strong>
+                            </span>
+
+                            <small>
+                              Pay at the hotel
+                              when collecting
+                              your order.
+                            </small>
+                          </span>
+                        </label>
+                      </div>
+
+                      {paymentMethod ===
+                        "ONLINE" && (
+                        <div className="checkout-stripe-note">
+                          <LockIcon />
+
+                          <div>
+                            <strong>
+                              Secure Stripe
+                              payment
+                            </strong>
+
+                            <p>
+                              You will be
+                              redirected to
+                              Stripe to enter
+                              your card details.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="checkout-step">
+                      <div className="checkout-step-header">
+                        <span className="checkout-step-icon">
+                          <NoteIcon />
+                        </span>
+
+                        <div>
+                          <small>
+                            OPTIONAL
+                          </small>
+
+                          <h3>
+                            Order comments
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="checkout-step-body">
+                        <div className="checkout-input">
+                          <label htmlFor="notes">
+                            Allergies, requests
+                            or pickup
+                            instructions
+                          </label>
+
+                          <textarea
+                            id="notes"
+                            name="notes"
+                            rows={4}
+                            placeholder="Add a note for the kitchen"
+                            disabled={
+                              submitting
+                            }
+                          />
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+
+                  <aside className="checkout-order-summary">
+                    <div className="checkout-summary-heading">
+                      <div>
+                        <small>
+                          YOUR ORDER
+                        </small>
+
+                        <h3>
+                          Pickup summary
+                        </h3>
+                      </div>
+
+                      <span>
+                        {itemCount}{" "}
+                        {itemCount === 1
+                          ? "item"
+                          : "items"}
+                      </span>
+                    </div>
+
+                    <div className="checkout-summary-lines">
+                      {cartLines.map(
+                        (line) => (
+                          <div
+                            className="checkout-summary-line"
+                            key={
+                              line.cartId
+                            }
+                          >
+                            <strong>
+                              {
+                                line.quantity
+                              }
+                              ×
+                            </strong>
+
+                            <div>
+                              <span>
+                                {
+                                  line.name
+                                }
+                              </span>
+
+                              {line.type ===
+                                "SPECIAL" && (
+                                <small>
+                                  Special
+                                </small>
+                              )}
+                            </div>
+
+                            <b>
+                              {money(
+                                line.priceCents *
+                                  line.quantity,
+                              )}
+                            </b>
+                          </div>
+                        ),
+                      )}
+                    </div>
+
+                    <div className="checkout-summary-totals">
+                      <div>
+                        <span>
+                          Subtotal
+                        </span>
+
+                        <strong>
+                          {money(
+                            total,
+                          )}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Pickup
+                        </span>
+
+                        <strong>
+                          Free
+                        </strong>
+                      </div>
+
+                      <div className="checkout-summary-grand">
+                        <span>
+                          Total
+                        </span>
+
+                        <strong>
+                          {money(
+                            total,
+                          )}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="checkout-summary-status">
+                      <span className="open" />
+
+                      <div>
+                        <strong>
+                          Kitchen open
+                        </strong>
+
+                        <small>
+                          Typical pickup:{" "}
+                          {
+                            settings.pickupMinutes
+                          }{" "}
+                          minutes
+                        </small>
+                      </div>
+                    </div>
+
+                    <div className="checkout-summary-secure">
+                      <LockIcon />
+                      Secure payment powered
+                      by Stripe
+                    </div>
+                  </aside>
+                </div>
+
+                {error && (
+                  <div
+                    className="new-checkout-error"
+                    role="alert"
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <footer className="new-checkout-footer">
+                  <div>
+                    <p>
+                      By placing this order,
+                      you confirm the order
+                      and pickup details are
+                      correct.
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={
+                      submitting ||
+                      !kitchenIsOpen
+                    }
+                  >
+                    <span>
+                      <small>
+                        TOTAL
+                      </small>
+
+                      <strong>
+                        {money(total)}
+                      </strong>
+                    </span>
+
+                    <b>
+                      {submitting
+                        ? paymentMethod ===
+                          "ONLINE"
+                          ? "Opening Stripe…"
+                          : "Placing order…"
+                        : paymentMethod ===
+                            "ONLINE"
+                          ? "Continue to secure payment"
+                          : "Place pickup order now"}
+                    </b>
+                  </button>
+                </footer>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </>
   );
 }

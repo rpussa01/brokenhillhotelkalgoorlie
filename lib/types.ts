@@ -58,26 +58,30 @@ export type Order = {
 export type Category = {
   id: string;
   name: string;
-  sortOrder: number;
+  description: string | null;
   active: boolean;
+  displayOrder: number;
 };
 
 export type MenuItem = {
   id: string;
-  categoryId: string;
-
   name: string;
   description: string | null;
+  priceCents: number;
   imageUrl: string | null;
 
-  priceCents: number;
+  featured: boolean;
+  chefFavourite: boolean;
+  popular: boolean;
 
   dietary: string[];
 
-  active: boolean;
-  soldOut: boolean;
+  available: boolean;
+  dineInOnly: boolean;
+  takeaway: boolean;
 
-  sortOrder: number;
+  displayOrder: number;
+  categoryId: string;
 };
 export type Settings = {
   id: string;

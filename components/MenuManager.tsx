@@ -7,7 +7,30 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import type { Category, MenuItem } from "@/lib/types";
+
+type AdminCategory = {
+  id: string;
+  name: string;
+  active: boolean;
+  displayOrder: number;
+};
+
+type AdminMenuItem = {
+  id: string;
+  categoryId: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  priceCents: number;
+  available: boolean;
+  dietary: string[];
+  displayOrder: number;
+  featured: boolean;
+  chefFavourite: boolean;
+  popular: boolean;
+  dineInOnly: boolean;
+  takeaway: boolean;
+};
 
 type Special = {
   id: string;
@@ -28,10 +51,14 @@ type ItemDraft = {
   description: string;
   imageUrl: string;
   price: string;
-  active: boolean;
-  soldOut: boolean;
+  available: boolean;
   dietary: string;
-  sortOrder: string;
+  displayOrder: string;
+  featured: boolean;
+  chefFavourite: boolean;
+  popular: boolean;
+  dineInOnly: boolean;
+  takeaway: boolean;
 };
 
 type SpecialDraft = {
@@ -47,8 +74,8 @@ type SpecialDraft = {
 };
 
 type MenuManagerProps = {
-  initialCategories: Category[];
-  initialItems: MenuItem[];
+  initialCategories: AdminCategory[];
+  initialItems: AdminMenuItem[];
   initialSpecials: Special[];
 };
 
@@ -66,35 +93,46 @@ type ApiError = {
   details?: unknown;
 };
 
-const emptyItemDraft = (categoryId = ""): ItemDraft => ({
+const emptyItemDraft = (
+  categoryId = "",
+): ItemDraft => ({
   categoryId,
   name: "",
   description: "",
   imageUrl: "",
   price: "",
-  active: true,
-  soldOut: false,
+  available: true,
   dietary: "",
-  sortOrder: "0",
+  displayOrder: "0",
+  featured: false,
+  chefFavourite: false,
+  popular: false,
+  dineInOnly: false,
+  takeaway: true,
 });
 
-const emptySpecialDraft = (): SpecialDraft => ({
-  title: "",
-  description: "",
-  price: "",
-  day: "",
-  badge: "CHEF SPECIAL",
-  imageUrl: "",
-  active: true,
-  sortOrder: "0",
-});
+const emptySpecialDraft =
+  (): SpecialDraft => ({
+    title: "",
+    description: "",
+    price: "",
+    day: "",
+    badge: "CHEF SPECIAL",
+    imageUrl: "",
+    active: true,
+    sortOrder: "0",
+  });
 
-async function readApiResponse<T>(response: Response): Promise<T> {
+async function readApiResponse<T>(
+  response: Response,
+): Promise<T> {
   const text = await response.text();
 
   if (!text) {
     if (!response.ok) {
-      throw new Error(`Request failed with status ${response.status}.`);
+      throw new Error(
+        `Request failed with status ${response.status}.`,
+      );
     }
 
     return {} as T;
@@ -105,10 +143,13 @@ async function readApiResponse<T>(response: Response): Promise<T> {
   try {
     data = JSON.parse(text) as T | ApiError;
   } catch {
-    console.error("Non-JSON API response:", text);
+    console.error(
+      "Non-JSON API response:",
+      text,
+    );
 
     throw new Error(
-      `The server returned HTML instead of JSON (${response.status}). Check that the API route exists and is in the correct folder.`,
+      `The server returned HTML instead of JSON (${response.status}). Check that the API route exists.`,
     );
   }
 
@@ -116,26 +157,58 @@ async function readApiResponse<T>(response: Response): Promise<T> {
     const apiError = data as ApiError;
 
     throw new Error(
-      apiError.error || `Request failed with status ${response.status}.`,
+      apiError.error ||
+        `Request failed with status ${response.status}.`,
     );
   }
 
   return data as T;
 }
 
-function normalizeSpecial(special: Special): Special {
+function normalizeMenuItem(
+  item: AdminMenuItem,
+): AdminMenuItem {
+  return {
+    ...item,
+    description: item.description ?? null,
+    imageUrl: item.imageUrl ?? null,
+    available: Boolean(item.available),
+    dietary: Array.isArray(item.dietary)
+      ? item.dietary
+      : [],
+    displayOrder:
+      Number(item.displayOrder) || 0,
+    featured: Boolean(item.featured),
+    chefFavourite: Boolean(
+      item.chefFavourite,
+    ),
+    popular: Boolean(item.popular),
+    dineInOnly: Boolean(item.dineInOnly),
+    takeaway:
+      item.dineInOnly === true
+        ? false
+        : Boolean(item.takeaway),
+  };
+}
+
+function normalizeSpecial(
+  special: Special,
+): Special {
   return {
     ...special,
-    description: special.description ?? null,
+    description:
+      special.description ?? null,
     day: special.day ?? null,
     badge: special.badge ?? null,
     imageUrl: special.imageUrl ?? null,
     price:
-      special.price === null || special.price === ""
+      special.price === null ||
+      special.price === ""
         ? null
         : Number(special.price),
     active: Boolean(special.active),
-    sortOrder: Number(special.sortOrder) || 0,
+    sortOrder:
+      Number(special.sortOrder) || 0,
   };
 }
 
@@ -147,17 +220,23 @@ function ImagePreview({
   className = "",
   children,
 }: ImagePreviewProps) {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] =
+    useState(false);
 
   useEffect(() => {
     setFailed(false);
   }, [src]);
 
-  const cleanSource = src?.trim() ?? "";
-  const showImage = cleanSource.length > 0 && !failed;
+  const cleanSource =
+    src?.trim() ?? "";
+
+  const showImage =
+    cleanSource.length > 0 && !failed;
 
   return (
-    <div className={`menu-image-frame ${className}`}>
+    <div
+      className={`menu-image-frame ${className}`}
+    >
       {showImage ? (
         <img
           src={cleanSource}
@@ -166,8 +245,12 @@ function ImagePreview({
         />
       ) : (
         <div className="menu-image-placeholder">
-          <span className="menu-placeholder-mark">BH</span>
+          <span className="menu-placeholder-mark">
+            BH
+          </span>
+
           <strong>{title}</strong>
+
           <small>{subtitle}</small>
         </div>
       )}
@@ -183,83 +266,133 @@ export default function MenuManager({
   initialSpecials,
 }: MenuManagerProps) {
   const [activePanel, setActivePanel] =
-    useState<"menu" | "specials">("menu");
+    useState<"menu" | "specials">(
+      "menu",
+    );
 
-  const [categories, setCategories] = useState<Category[]>(
-    Array.isArray(initialCategories) ? initialCategories : [],
-  );
+  const [categories, setCategories] =
+    useState<AdminCategory[]>(
+      Array.isArray(initialCategories)
+        ? initialCategories
+        : [],
+    );
 
-  const [items, setItems] = useState<MenuItem[]>(
-    Array.isArray(initialItems) ? initialItems : [],
-  );
-
-  const [specials, setSpecials] = useState<Special[]>(
-    Array.isArray(initialSpecials)
-      ? initialSpecials.map(normalizeSpecial)
+  const [items, setItems] = useState<
+    AdminMenuItem[]
+  >(
+    Array.isArray(initialItems)
+      ? initialItems.map(
+          normalizeMenuItem,
+        )
       : [],
   );
 
-  const [selectedCategory, setSelectedCategory] = useState(
-    initialCategories?.[0]?.id ?? "",
-  );
+  const [specials, setSpecials] =
+    useState<Special[]>(
+      Array.isArray(initialSpecials)
+        ? initialSpecials.map(
+            normalizeSpecial,
+          )
+        : [],
+    );
 
-  const [itemDraft, setItemDraft] = useState<ItemDraft>(
-    emptyItemDraft(initialCategories?.[0]?.id ?? ""),
-  );
+  const [selectedCategory, setSelectedCategory] =
+    useState(
+      initialCategories?.[0]?.id ?? "",
+    );
+
+  const [itemDraft, setItemDraft] =
+    useState<ItemDraft>(
+      emptyItemDraft(
+        initialCategories?.[0]?.id ?? "",
+      ),
+    );
 
   const [specialDraft, setSpecialDraft] =
-    useState<SpecialDraft>(emptySpecialDraft());
+    useState<SpecialDraft>(
+      emptySpecialDraft(),
+    );
 
-  const [categoryName, setCategoryName] = useState("");
-  const [search, setSearch] = useState("");
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [categoryName, setCategoryName] =
+    useState("");
+
+  const [search, setSearch] =
+    useState("");
+
+  const [message, setMessage] =
+    useState("");
+
+  const [busy, setBusy] =
+    useState(false);
 
   const sortedCategories = useMemo(
     () =>
       [...categories].sort(
         (a, b) =>
-          a.sortOrder - b.sortOrder ||
+          (a.displayOrder ?? 0) -
+            (b.displayOrder ?? 0) ||
           a.name.localeCompare(b.name),
       ),
     [categories],
   );
 
   const visibleItems = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = search
+      .trim()
+      .toLowerCase();
 
     return [...items]
       .filter((item) => {
         const categoryMatches =
-          !selectedCategory || item.categoryId === selectedCategory;
+          !selectedCategory ||
+          item.categoryId ===
+            selectedCategory;
 
         const searchMatches =
           !query ||
-          item.name.toLowerCase().includes(query) ||
-          (item.description ?? "").toLowerCase().includes(query);
+          item.name
+            .toLowerCase()
+            .includes(query) ||
+          (item.description ?? "")
+            .toLowerCase()
+            .includes(query);
 
-        return categoryMatches && searchMatches;
+        return (
+          categoryMatches &&
+          searchMatches
+        );
       })
       .sort(
         (a, b) =>
-          a.sortOrder - b.sortOrder ||
+          (a.displayOrder ?? 0) -
+            (b.displayOrder ?? 0) ||
           a.name.localeCompare(b.name),
       );
-  }, [items, selectedCategory, search]);
+  }, [
+    items,
+    selectedCategory,
+    search,
+  ]);
 
   const sortedSpecials = useMemo(
     () =>
       [...specials].sort(
         (a, b) =>
-          a.sortOrder - b.sortOrder ||
-          a.title.localeCompare(b.title),
+          a.sortOrder -
+            b.sortOrder ||
+          a.title.localeCompare(
+            b.title,
+          ),
       ),
     [specials],
   );
 
   const selectedCategoryName =
-    categories.find((category) => category.id === selectedCategory)
-      ?.name ?? "All items";
+    categories.find(
+      (category) =>
+        category.id ===
+        selectedCategory,
+    )?.name ?? "All items";
 
   function notify(text: string) {
     setMessage(text);
@@ -269,31 +402,56 @@ export default function MenuManager({
     }, 2600);
   }
 
-  function resetItemDraft(categoryId = selectedCategory) {
-    setItemDraft(emptyItemDraft(categoryId));
+  function resetItemDraft(
+    categoryId = selectedCategory,
+  ) {
+    setItemDraft(
+      emptyItemDraft(categoryId),
+    );
   }
 
   function resetSpecialDraft() {
-    setSpecialDraft(emptySpecialDraft());
+    setSpecialDraft(
+      emptySpecialDraft(),
+    );
   }
 
-  function editItem(item: MenuItem) {
+  function editItem(
+    item: AdminMenuItem,
+  ) {
     setActivePanel("menu");
-    setSelectedCategory(item.categoryId);
+    setSelectedCategory(
+      item.categoryId,
+    );
 
     setItemDraft({
       id: item.id,
       categoryId: item.categoryId,
       name: item.name,
-      description: item.description ?? "",
+      description:
+        item.description ?? "",
       imageUrl: item.imageUrl ?? "",
-      price: (item.priceCents / 100).toFixed(2),
-      active: item.active,
-      soldOut: item.soldOut,
-      dietary: Array.isArray(item.dietary)
+      price: (
+        item.priceCents / 100
+      ).toFixed(2),
+      available: item.available,
+      dietary: Array.isArray(
+        item.dietary,
+      )
         ? item.dietary.join(", ")
         : "",
-      sortOrder: String(item.sortOrder),
+      displayOrder: String(
+        item.displayOrder ?? 0,
+      ),
+      featured: item.featured,
+      chefFavourite:
+        item.chefFavourite,
+      popular: item.popular,
+      dineInOnly: item.dineInOnly,
+      takeaway:
+        item.dineInOnly
+          ? false
+          : item.takeaway,
     });
 
     window.scrollTo({
@@ -302,22 +460,32 @@ export default function MenuManager({
     });
   }
 
-  function editSpecial(special: Special) {
+  function editSpecial(
+    special: Special,
+  ) {
     setActivePanel("specials");
 
     setSpecialDraft({
       id: special.id,
       title: special.title,
-      description: special.description ?? "",
+      description:
+        special.description ?? "",
       price:
         special.price === null
           ? ""
-          : Number(special.price).toFixed(2),
+          : Number(
+              special.price,
+            ).toFixed(2),
       day: special.day ?? "",
-      badge: special.badge ?? "CHEF SPECIAL",
-      imageUrl: special.imageUrl ?? "",
+      badge:
+        special.badge ??
+        "CHEF SPECIAL",
+      imageUrl:
+        special.imageUrl ?? "",
       active: special.active,
-      sortOrder: String(special.sortOrder),
+      sortOrder: String(
+        special.sortOrder,
+      ),
     });
 
     window.scrollTo({
@@ -326,7 +494,9 @@ export default function MenuManager({
     });
   }
 
-  async function saveItem(event: FormEvent<HTMLFormElement>) {
+  async function saveItem(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     if (busy) {
@@ -336,76 +506,147 @@ export default function MenuManager({
     setBusy(true);
 
     try {
-      const priceCents = Math.round(Number(itemDraft.price) * 100);
-      const sortOrder = Number(itemDraft.sortOrder);
+      const priceCents = Math.round(
+        Number(itemDraft.price) * 100,
+      );
+
+      const displayOrder = Number(
+        itemDraft.displayOrder,
+      );
 
       if (!itemDraft.categoryId) {
-        throw new Error("Choose a category.");
-      }
-
-      if (itemDraft.name.trim().length < 2) {
-        throw new Error("Enter a valid menu item name.");
-      }
-
-      if (!Number.isFinite(priceCents) || priceCents < 0) {
-        throw new Error("Enter a valid price.");
+        throw new Error(
+          "Choose a category.",
+        );
       }
 
       if (
-        itemDraft.sortOrder.trim() &&
-        !Number.isInteger(sortOrder)
+        itemDraft.name.trim().length <
+        2
       ) {
-        throw new Error("Display order must be a whole number.");
+        throw new Error(
+          "Enter a valid menu item name.",
+        );
+      }
+
+      if (
+        !Number.isFinite(priceCents) ||
+        priceCents < 0
+      ) {
+        throw new Error(
+          "Enter a valid price.",
+        );
+      }
+
+      if (
+        itemDraft.displayOrder.trim() &&
+        !Number.isInteger(displayOrder)
+      ) {
+        throw new Error(
+          "Display order must be a whole number.",
+        );
       }
 
       const payload = {
-        categoryId: itemDraft.categoryId,
+        categoryId:
+          itemDraft.categoryId,
         name: itemDraft.name.trim(),
-        description: itemDraft.description.trim(),
-        imageUrl: itemDraft.imageUrl.trim() || null,
+        description:
+          itemDraft.description.trim() ||
+          null,
+        imageUrl:
+          itemDraft.imageUrl.trim() ||
+          null,
         priceCents,
-        active: itemDraft.active,
-        soldOut: itemDraft.soldOut,
+        available:
+          itemDraft.available,
         dietary: itemDraft.dietary
           .split(",")
-          .map((tag) => tag.trim().toUpperCase())
+          .map((tag) =>
+            tag.trim().toUpperCase(),
+          )
           .filter(Boolean),
-        sortOrder: Number.isInteger(sortOrder) ? sortOrder : 0,
+        displayOrder:
+          Number.isInteger(
+            displayOrder,
+          )
+            ? displayOrder
+            : 0,
+        featured: itemDraft.featured,
+        chefFavourite:
+          itemDraft.chefFavourite,
+        popular: itemDraft.popular,
+        dineInOnly:
+          itemDraft.dineInOnly,
+        takeaway:
+          itemDraft.dineInOnly
+            ? false
+            : itemDraft.takeaway,
       };
 
-      const isEditing = Boolean(itemDraft.id);
+      const isEditing = Boolean(
+        itemDraft.id,
+      );
 
       const endpoint = isEditing
-        ? `/api/admin/menu/${encodeURIComponent(itemDraft.id!)}`
+        ? `/api/admin/menu/${encodeURIComponent(
+            itemDraft.id!,
+          )}`
         : "/api/admin/menu";
 
-      const response = await fetch(endpoint, {
-        method: isEditing ? "PATCH" : "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        endpoint,
+        {
+          method: isEditing
+            ? "PATCH"
+            : "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
 
-      const savedItem = await readApiResponse<MenuItem>(response);
+      const result =
+        await readApiResponse<AdminMenuItem>(
+          response,
+        );
+
+      const savedItem =
+        normalizeMenuItem(result);
 
       if (isEditing) {
         setItems((current) =>
           current.map((item) =>
-            item.id === savedItem.id ? savedItem : item,
+            item.id === savedItem.id
+              ? savedItem
+              : item,
           ),
         );
 
         notify("Menu item updated");
       } else {
-        setItems((current) => [...current, savedItem]);
+        setItems((current) => [
+          ...current,
+          savedItem,
+        ]);
+
         notify("Menu item created");
       }
 
-      setSelectedCategory(savedItem.categoryId);
-      resetItemDraft(savedItem.categoryId);
+      setSelectedCategory(
+        savedItem.categoryId,
+      );
+
+      resetItemDraft(
+        savedItem.categoryId,
+      );
     } catch (error) {
-      console.error("Save menu item error:", error);
+      console.error(
+        "Save menu item error:",
+        error,
+      );
 
       notify(
         error instanceof Error
@@ -417,7 +658,9 @@ export default function MenuManager({
     }
   }
 
-  async function saveSpecial(event: FormEvent<HTMLFormElement>) {
+  async function saveSpecial(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     if (busy) {
@@ -427,37 +670,67 @@ export default function MenuManager({
     setBusy(true);
 
     try {
-      const title = specialDraft.title.trim();
-      const price = Number(specialDraft.price);
-      const sortOrder = Number(specialDraft.sortOrder);
+      const title =
+        specialDraft.title.trim();
+
+      const price = Number(
+        specialDraft.price,
+      );
+
+      const sortOrder = Number(
+        specialDraft.sortOrder,
+      );
 
       if (title.length < 2) {
-        throw new Error("Enter a valid special title.");
+        throw new Error(
+          "Enter a valid special title.",
+        );
       }
 
-      if (!Number.isFinite(price) || price < 0) {
-        throw new Error("Enter a valid price.");
+      if (
+        !Number.isFinite(price) ||
+        price < 0
+      ) {
+        throw new Error(
+          "Enter a valid price.",
+        );
       }
 
       if (
         specialDraft.sortOrder.trim() &&
         !Number.isInteger(sortOrder)
       ) {
-        throw new Error("Display order must be a whole number.");
+        throw new Error(
+          "Display order must be a whole number.",
+        );
       }
 
       const payload = {
         title,
-        description: specialDraft.description.trim() || null,
+        description:
+          specialDraft.description.trim() ||
+          null,
         price,
-        day: specialDraft.day.trim() || null,
-        badge: specialDraft.badge.trim() || "CHEF SPECIAL",
-        imageUrl: specialDraft.imageUrl.trim() || null,
-        active: specialDraft.active,
-        sortOrder: Number.isInteger(sortOrder) ? sortOrder : 0,
+        day:
+          specialDraft.day.trim() ||
+          null,
+        badge:
+          specialDraft.badge.trim() ||
+          "CHEF SPECIAL",
+        imageUrl:
+          specialDraft.imageUrl.trim() ||
+          null,
+        active:
+          specialDraft.active,
+        sortOrder:
+          Number.isInteger(sortOrder)
+            ? sortOrder
+            : 0,
       };
 
-      const isEditing = Boolean(specialDraft.id);
+      const isEditing = Boolean(
+        specialDraft.id,
+      );
 
       const endpoint = isEditing
         ? `/api/admin/specials/${encodeURIComponent(
@@ -465,33 +738,58 @@ export default function MenuManager({
           )}`
         : "/api/admin/specials";
 
-      const response = await fetch(endpoint, {
-        method: isEditing ? "PATCH" : "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        endpoint,
+        {
+          method: isEditing
+            ? "PATCH"
+            : "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
 
-      const result = await readApiResponse<Special>(response);
-      const savedSpecial = normalizeSpecial(result);
+      const result =
+        await readApiResponse<Special>(
+          response,
+        );
+
+      const savedSpecial =
+        normalizeSpecial(result);
 
       if (isEditing) {
         setSpecials((current) =>
           current.map((special) =>
-            special.id === savedSpecial.id ? savedSpecial : special,
+            special.id ===
+            savedSpecial.id
+              ? savedSpecial
+              : special,
           ),
         );
 
-        notify("Chef special updated");
+        notify(
+          "Chef special updated",
+        );
       } else {
-        setSpecials((current) => [...current, savedSpecial]);
-        notify("Chef special created");
+        setSpecials((current) => [
+          ...current,
+          savedSpecial,
+        ]);
+
+        notify(
+          "Chef special created",
+        );
       }
 
       resetSpecialDraft();
     } catch (error) {
-      console.error("Save chef special error:", error);
+      console.error(
+        "Save chef special error:",
+        error,
+      );
 
       notify(
         error instanceof Error
@@ -504,26 +802,57 @@ export default function MenuManager({
   }
 
   async function quickUpdateItem(
-    item: MenuItem,
-    changes: Partial<MenuItem>,
+    item: AdminMenuItem,
+    changes: Partial<AdminMenuItem>,
   ) {
     try {
+      const nextChanges = {
+        ...changes,
+      };
+
+      if (
+        nextChanges.dineInOnly ===
+        true
+      ) {
+        nextChanges.takeaway = false;
+      }
+
+      if (
+        nextChanges.takeaway === true
+      ) {
+        nextChanges.dineInOnly =
+          false;
+      }
+
       const response = await fetch(
-        `/api/admin/menu/${encodeURIComponent(item.id)}`,
+        `/api/admin/menu/${encodeURIComponent(
+          item.id,
+        )}`,
         {
           method: "PATCH",
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
-          body: JSON.stringify(changes),
+          body: JSON.stringify(
+            nextChanges,
+          ),
         },
       );
 
-      const updated = await readApiResponse<MenuItem>(response);
+      const result =
+        await readApiResponse<AdminMenuItem>(
+          response,
+        );
+
+      const updated =
+        normalizeMenuItem(result);
 
       setItems((current) =>
         current.map((entry) =>
-          entry.id === item.id ? updated : entry,
+          entry.id === item.id
+            ? updated
+            : entry,
         ),
       );
     } catch (error) {
@@ -541,22 +870,32 @@ export default function MenuManager({
   ) {
     try {
       const response = await fetch(
-        `/api/admin/specials/${encodeURIComponent(special.id)}`,
+        `/api/admin/specials/${encodeURIComponent(
+          special.id,
+        )}`,
         {
           method: "PATCH",
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
           body: JSON.stringify(changes),
         },
       );
 
-      const result = await readApiResponse<Special>(response);
-      const updated = normalizeSpecial(result);
+      const result =
+        await readApiResponse<Special>(
+          response,
+        );
+
+      const updated =
+        normalizeSpecial(result);
 
       setSpecials((current) =>
         current.map((entry) =>
-          entry.id === special.id ? updated : entry,
+          entry.id === special.id
+            ? updated
+            : entry,
         ),
       );
     } catch (error) {
@@ -568,23 +907,36 @@ export default function MenuManager({
     }
   }
 
-  async function deleteItem(item: MenuItem) {
-    if (!window.confirm(`Delete "${item.name}"?`)) {
+  async function deleteItem(
+    item: AdminMenuItem,
+  ) {
+    if (
+      !window.confirm(
+        `Delete "${item.name}"?`,
+      )
+    ) {
       return;
     }
 
     try {
       const response = await fetch(
-        `/api/admin/menu/${encodeURIComponent(item.id)}`,
+        `/api/admin/menu/${encodeURIComponent(
+          item.id,
+        )}`,
         {
           method: "DELETE",
         },
       );
 
-      await readApiResponse<{ success: boolean }>(response);
+      await readApiResponse<{
+        success: boolean;
+      }>(response);
 
       setItems((current) =>
-        current.filter((entry) => entry.id !== item.id),
+        current.filter(
+          (entry) =>
+            entry.id !== item.id,
+        ),
       );
 
       if (itemDraft.id === item.id) {
@@ -601,30 +953,47 @@ export default function MenuManager({
     }
   }
 
-  async function deleteSpecial(special: Special) {
-    if (!window.confirm(`Delete chef special "${special.title}"?`)) {
+  async function deleteSpecial(
+    special: Special,
+  ) {
+    if (
+      !window.confirm(
+        `Delete chef special "${special.title}"?`,
+      )
+    ) {
       return;
     }
 
     try {
       const response = await fetch(
-        `/api/admin/specials/${encodeURIComponent(special.id)}`,
+        `/api/admin/specials/${encodeURIComponent(
+          special.id,
+        )}`,
         {
           method: "DELETE",
         },
       );
 
-      await readApiResponse<{ success: boolean }>(response);
+      await readApiResponse<{
+        success: boolean;
+      }>(response);
 
       setSpecials((current) =>
-        current.filter((entry) => entry.id !== special.id),
+        current.filter(
+          (entry) =>
+            entry.id !== special.id,
+        ),
       );
 
-      if (specialDraft.id === special.id) {
+      if (
+        specialDraft.id === special.id
+      ) {
         resetSpecialDraft();
       }
 
-      notify("Chef special deleted");
+      notify(
+        "Chef special deleted",
+      );
     } catch (error) {
       notify(
         error instanceof Error
@@ -634,30 +1003,49 @@ export default function MenuManager({
     }
   }
 
-  async function createCategory(event: FormEvent<HTMLFormElement>) {
+  async function createCategory(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
-    const name = categoryName.trim();
+    const name =
+      categoryName.trim();
 
     if (!name) {
       return;
     }
 
     try {
-      const response = await fetch("/api/admin/categories", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        "/api/admin/categories",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            name,
+          }),
         },
-        body: JSON.stringify({ name }),
-      });
+      );
 
-      const category = await readApiResponse<Category>(response);
+      const category =
+        await readApiResponse<AdminCategory>(
+          response,
+        );
 
-      setCategories((current) => [...current, category]);
+      setCategories((current) => [
+        ...current,
+        category,
+      ]);
+
       setCategoryName("");
-      setSelectedCategory(category.id);
+      setSelectedCategory(
+        category.id,
+      );
       resetItemDraft(category.id);
+
       notify("Category created");
     } catch (error) {
       notify(
@@ -668,32 +1056,50 @@ export default function MenuManager({
     }
   }
 
-  async function renameCategory(category: Category) {
+  async function renameCategory(
+    category: AdminCategory,
+  ) {
     const name = window
-      .prompt("Category name", category.name)
+      .prompt(
+        "Category name",
+        category.name,
+      )
       ?.trim();
 
-    if (!name || name === category.name) {
+    if (
+      !name ||
+      name === category.name
+    ) {
       return;
     }
 
     try {
       const response = await fetch(
-        `/api/admin/categories/${encodeURIComponent(category.id)}`,
+        `/api/admin/categories/${encodeURIComponent(
+          category.id,
+        )}`,
         {
           method: "PATCH",
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
-          body: JSON.stringify({ name }),
+          body: JSON.stringify({
+            name,
+          }),
         },
       );
 
-      const updated = await readApiResponse<Category>(response);
+      const updated =
+        await readApiResponse<AdminCategory>(
+          response,
+        );
 
       setCategories((current) =>
         current.map((entry) =>
-          entry.id === category.id ? updated : entry,
+          entry.id === category.id
+            ? updated
+            : entry,
         ),
       );
 
@@ -707,14 +1113,19 @@ export default function MenuManager({
     }
   }
 
-  async function toggleCategory(category: Category) {
+  async function toggleCategory(
+    category: AdminCategory,
+  ) {
     try {
       const response = await fetch(
-        `/api/admin/categories/${encodeURIComponent(category.id)}`,
+        `/api/admin/categories/${encodeURIComponent(
+          category.id,
+        )}`,
         {
           method: "PATCH",
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
           body: JSON.stringify({
             active: !category.active,
@@ -722,11 +1133,16 @@ export default function MenuManager({
         },
       );
 
-      const updated = await readApiResponse<Category>(response);
+      const updated =
+        await readApiResponse<AdminCategory>(
+          response,
+        );
 
       setCategories((current) =>
         current.map((entry) =>
-          entry.id === category.id ? updated : entry,
+          entry.id === category.id
+            ? updated
+            : entry,
         ),
       );
     } catch (error) {
@@ -738,39 +1154,61 @@ export default function MenuManager({
     }
   }
 
-  async function deleteCategory(category: Category) {
+  async function deleteCategory(
+    category: AdminCategory,
+  ) {
     const hasItems = items.some(
-      (item) => item.categoryId === category.id,
+      (item) =>
+        item.categoryId ===
+        category.id,
     );
 
     if (hasItems) {
-      notify("Move or delete this category's menu items first.");
+      notify(
+        "Move or delete this category's menu items first.",
+      );
       return;
     }
 
-    if (!window.confirm(`Delete category "${category.name}"?`)) {
+    if (
+      !window.confirm(
+        `Delete category "${category.name}"?`,
+      )
+    ) {
       return;
     }
 
     try {
       const response = await fetch(
-        `/api/admin/categories/${encodeURIComponent(category.id)}`,
+        `/api/admin/categories/${encodeURIComponent(
+          category.id,
+        )}`,
         {
           method: "DELETE",
         },
       );
 
-      await readApiResponse<{ success: boolean }>(response);
+      await readApiResponse<{
+        success: boolean;
+      }>(response);
 
-      const remaining = categories.filter(
-        (entry) => entry.id !== category.id,
-      );
+      const remaining =
+        categories.filter(
+          (entry) =>
+            entry.id !== category.id,
+        );
 
-      const nextCategoryId = remaining[0]?.id ?? "";
+      const nextCategoryId =
+        remaining[0]?.id ?? "";
 
       setCategories(remaining);
-      setSelectedCategory(nextCategoryId);
-      resetItemDraft(nextCategoryId);
+      setSelectedCategory(
+        nextCategoryId,
+      );
+      resetItemDraft(
+        nextCategoryId,
+      );
+
       notify("Category deleted");
     } catch (error) {
       notify(
@@ -783,13 +1221,23 @@ export default function MenuManager({
 
   return (
     <div className="menu-manager menu-manager-redesign">
-      {message && <div className="menu-toast">{message}</div>}
+      {message && (
+        <div className="menu-toast">
+          {message}
+        </div>
+      )}
 
       <div className="menu-manager-switcher">
         <button
           type="button"
-          className={activePanel === "menu" ? "active" : ""}
-          onClick={() => setActivePanel("menu")}
+          className={
+            activePanel === "menu"
+              ? "active"
+              : ""
+          }
+          onClick={() =>
+            setActivePanel("menu")
+          }
         >
           Menu items
           <span>{items.length}</span>
@@ -797,11 +1245,21 @@ export default function MenuManager({
 
         <button
           type="button"
-          className={activePanel === "specials" ? "active" : ""}
-          onClick={() => setActivePanel("specials")}
+          className={
+            activePanel === "specials"
+              ? "active"
+              : ""
+          }
+          onClick={() =>
+            setActivePanel(
+              "specials",
+            )
+          }
         >
           Chef specials
-          <span>{specials.length}</span>
+          <span>
+            {specials.length}
+          </span>
         </button>
       </div>
 
@@ -810,11 +1268,16 @@ export default function MenuManager({
           <aside className="menu-sidebar">
             <div className="menu-sidebar-head">
               <div>
-                <div className="eyebrow">CATEGORIES</div>
+                <div className="eyebrow">
+                  CATEGORIES
+                </div>
+
                 <h2>Menu sections</h2>
               </div>
 
-              <span>{categories.length}</span>
+              <span>
+                {categories.length}
+              </span>
             </div>
 
             <form
@@ -824,83 +1287,124 @@ export default function MenuManager({
               <input
                 value={categoryName}
                 onChange={(event) =>
-                  setCategoryName(event.target.value)
+                  setCategoryName(
+                    event.target.value,
+                  )
                 }
                 placeholder="New category"
               />
 
-              <button className="button" type="submit">
+              <button
+                className="button"
+                type="submit"
+              >
                 Add
               </button>
             </form>
 
             <div className="category-manager-list category-sidebar-list">
-              {sortedCategories.map((category) => {
-                const count = items.filter(
-                  (item) => item.categoryId === category.id,
-                ).length;
+              {sortedCategories.map(
+                (category) => {
+                  const count =
+                    items.filter(
+                      (item) =>
+                        item.categoryId ===
+                        category.id,
+                    ).length;
 
-                return (
-                  <div
-                    className={`category-manager-row ${
-                      selectedCategory === category.id
-                        ? "selected"
-                        : ""
-                    }`}
-                    key={category.id}
-                  >
-                    <button
-                      type="button"
-                      className="category-name-button"
-                      onClick={() => {
-                        setSelectedCategory(category.id);
-
-                        if (!itemDraft.id) {
-                          setItemDraft((current) => ({
-                            ...current,
-                            categoryId: category.id,
-                          }));
-                        }
-                      }}
+                  return (
+                    <div
+                      className={`category-manager-row ${
+                        selectedCategory ===
+                        category.id
+                          ? "selected"
+                          : ""
+                      }`}
+                      key={category.id}
                     >
-                      <span>
-                        <strong>{category.name}</strong>
-                        <small>{count} items</small>
-                      </span>
-
-                      <span
-                        className={`category-status-dot ${
-                          category.active ? "active" : ""
-                        }`}
-                      />
-                    </button>
-
-                    <div className="category-actions">
                       <button
                         type="button"
-                        onClick={() => toggleCategory(category)}
+                        className="category-name-button"
+                        onClick={() => {
+                          setSelectedCategory(
+                            category.id,
+                          );
+
+                          if (
+                            !itemDraft.id
+                          ) {
+                            setItemDraft(
+                              (current) => ({
+                                ...current,
+                                categoryId:
+                                  category.id,
+                              }),
+                            );
+                          }
+                        }}
                       >
-                        {category.active ? "Hide" : "Show"}
+                        <span>
+                          <strong>
+                            {
+                              category.name
+                            }
+                          </strong>
+
+                          <small>
+                            {count} items
+                          </small>
+                        </span>
+
+                        <span
+                          className={`category-status-dot ${
+                            category.active
+                              ? "active"
+                              : ""
+                          }`}
+                        />
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => renameCategory(category)}
-                      >
-                        Rename
-                      </button>
+                      <div className="category-actions">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toggleCategory(
+                              category,
+                            )
+                          }
+                        >
+                          {category.active
+                            ? "Hide"
+                            : "Show"}
+                        </button>
 
-                      <button
-                        type="button"
-                        className="danger-text"
-                        onClick={() => deleteCategory(category)}
-                      >
-                        Delete
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            renameCategory(
+                              category,
+                            )
+                          }
+                        >
+                          Rename
+                        </button>
+
+                        <button
+                          type="button"
+                          className="danger-text"
+                          onClick={() =>
+                            deleteCategory(
+                              category,
+                            )
+                          }
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                },
+              )}
             </div>
           </aside>
 
@@ -908,7 +1412,9 @@ export default function MenuManager({
             <section className="menu-editor-card menu-editor-redesign">
               <div className="menu-editor-heading">
                 <div>
-                  <div className="eyebrow">MENU EDITOR</div>
+                  <div className="eyebrow">
+                    MENU EDITOR
+                  </div>
 
                   <h2>
                     {itemDraft.id
@@ -921,7 +1427,9 @@ export default function MenuManager({
                   <button
                     type="button"
                     className="button light"
-                    onClick={() => resetItemDraft()}
+                    onClick={() =>
+                      resetItemDraft()
+                    }
                   >
                     Add new instead
                   </button>
@@ -936,38 +1444,66 @@ export default function MenuManager({
                   <div className="menu-form-row">
                     <label>
                       Category
+
                       <select
-                        value={itemDraft.categoryId}
-                        onChange={(event) =>
-                          setItemDraft((current) => ({
-                            ...current,
-                            categoryId: event.target.value,
-                          }))
+                        value={
+                          itemDraft.categoryId
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              categoryId:
+                                event.target
+                                  .value,
+                            }),
+                          )
                         }
                         required
                       >
-                        <option value="">Choose category</option>
+                        <option value="">
+                          Choose category
+                        </option>
 
-                        {sortedCategories.map((category) => (
-                          <option
-                            key={category.id}
-                            value={category.id}
-                          >
-                            {category.name}
-                          </option>
-                        ))}
+                        {sortedCategories.map(
+                          (category) => (
+                            <option
+                              key={
+                                category.id
+                              }
+                              value={
+                                category.id
+                              }
+                            >
+                              {
+                                category.name
+                              }
+                            </option>
+                          ),
+                        )}
                       </select>
                     </label>
 
                     <label>
                       Item name
+
                       <input
-                        value={itemDraft.name}
-                        onChange={(event) =>
-                          setItemDraft((current) => ({
-                            ...current,
-                            name: event.target.value,
-                          }))
+                        value={
+                          itemDraft.name
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              name: event
+                                .target
+                                .value,
+                            }),
+                          )
                         }
                         placeholder="Classic Chicken Parmi"
                         maxLength={100}
@@ -979,16 +1515,25 @@ export default function MenuManager({
                   <div className="menu-form-row compact">
                     <label>
                       Price (AUD)
+
                       <input
                         type="number"
                         min="0"
                         step="0.01"
-                        value={itemDraft.price}
-                        onChange={(event) =>
-                          setItemDraft((current) => ({
-                            ...current,
-                            price: event.target.value,
-                          }))
+                        value={
+                          itemDraft.price
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              price:
+                                event.target
+                                  .value,
+                            }),
+                          )
                         }
                         placeholder="28.00"
                         required
@@ -997,15 +1542,24 @@ export default function MenuManager({
 
                     <label>
                       Display order
+
                       <input
                         type="number"
                         step="1"
-                        value={itemDraft.sortOrder}
-                        onChange={(event) =>
-                          setItemDraft((current) => ({
-                            ...current,
-                            sortOrder: event.target.value,
-                          }))
+                        value={
+                          itemDraft.displayOrder
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              displayOrder:
+                                event.target
+                                  .value,
+                            }),
+                          )
                         }
                       />
                     </label>
@@ -1013,76 +1567,118 @@ export default function MenuManager({
 
                   <label>
                     Description
+
                     <textarea
                       rows={4}
                       maxLength={500}
-                      value={itemDraft.description}
+                      value={
+                        itemDraft.description
+                      }
                       onChange={(event) =>
-                        setItemDraft((current) => ({
-                          ...current,
-                          description: event.target.value,
-                        }))
+                        setItemDraft(
+                          (current) => ({
+                            ...current,
+                            description:
+                              event.target
+                                .value,
+                          }),
+                        )
                       }
                       placeholder="House-crumbed chicken, Napoli, ham, mozzarella, chips and salad."
                     />
 
                     <small>
-                      {itemDraft.description.length}/500 characters
+                      {
+                        itemDraft
+                          .description
+                          .length
+                      }
+                      /500 characters
                     </small>
                   </label>
 
                   <label>
                     Image URL
+
                     <input
                       type="url"
-                      value={itemDraft.imageUrl}
+                      value={
+                        itemDraft.imageUrl
+                      }
                       onChange={(event) =>
-                        setItemDraft((current) => ({
-                          ...current,
-                          imageUrl: event.target.value,
-                        }))
+                        setItemDraft(
+                          (current) => ({
+                            ...current,
+                            imageUrl:
+                              event.target
+                                .value,
+                          }),
+                        )
                       }
                       placeholder="https://example.com/menu-item.jpg"
                     />
 
                     <small>
-                      Enter a complete direct JPG, PNG or WebP URL.
+                      Enter a direct JPG,
+                      PNG or WebP image URL.
                     </small>
                   </label>
 
                   <label>
                     Dietary tags
+
                     <input
-                      value={itemDraft.dietary}
+                      value={
+                        itemDraft.dietary
+                      }
                       onChange={(event) =>
-                        setItemDraft((current) => ({
-                          ...current,
-                          dietary: event.target.value,
-                        }))
+                        setItemDraft(
+                          (current) => ({
+                            ...current,
+                            dietary:
+                              event.target
+                                .value,
+                          }),
+                        )
                       }
                       placeholder="GF, V, VG"
                     />
 
-                    <small>Separate tags with commas.</small>
+                    <small>
+                      Separate tags with
+                      commas.
+                    </small>
                   </label>
 
                   <div className="menu-toggle-grid">
                     <label className="menu-toggle-card">
                       <input
                         type="checkbox"
-                        checked={itemDraft.active}
-                        onChange={(event) =>
-                          setItemDraft((current) => ({
-                            ...current,
-                            active: event.target.checked,
-                          }))
+                        checked={
+                          itemDraft.available
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              available:
+                                event.target
+                                  .checked,
+                            }),
+                          )
                         }
                       />
 
                       <span>
-                        <strong>Visible to customers</strong>
+                        <strong>
+                          Available
+                        </strong>
+
                         <small>
-                          Show this item on the ordering page.
+                          Show this item to
+                          customers.
                         </small>
                       </span>
                     </label>
@@ -1090,19 +1686,176 @@ export default function MenuManager({
                     <label className="menu-toggle-card">
                       <input
                         type="checkbox"
-                        checked={itemDraft.soldOut}
-                        onChange={(event) =>
-                          setItemDraft((current) => ({
-                            ...current,
-                            soldOut: event.target.checked,
-                          }))
+                        checked={
+                          itemDraft.dineInOnly
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              dineInOnly:
+                                event.target
+                                  .checked,
+                              takeaway:
+                                event.target
+                                  .checked
+                                  ? false
+                                  : current.takeaway,
+                            }),
+                          )
                         }
                       />
 
                       <span>
-                        <strong>Mark as sold out</strong>
+                        <strong>
+                          Dine-in only
+                        </strong>
+
                         <small>
-                          Keep it visible but prevent ordering.
+                          Show on the
+                          dine-in menu but
+                          hide from online
+                          ordering.
+                        </small>
+                      </span>
+                    </label>
+
+                    <label className="menu-toggle-card">
+                      <input
+                        type="checkbox"
+                        checked={
+                          itemDraft.takeaway
+                        }
+                        disabled={
+                          itemDraft.dineInOnly
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              takeaway:
+                                event.target
+                                  .checked,
+                              dineInOnly:
+                                event.target
+                                  .checked
+                                  ? false
+                                  : current.dineInOnly,
+                            }),
+                          )
+                        }
+                      />
+
+                      <span>
+                        <strong>
+                          Takeaway ordering
+                        </strong>
+
+                        <small>
+                          Allow customers to
+                          order this item
+                          online.
+                        </small>
+                      </span>
+                    </label>
+
+                    <label className="menu-toggle-card">
+                      <input
+                        type="checkbox"
+                        checked={
+                          itemDraft.featured
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              featured:
+                                event.target
+                                  .checked,
+                            }),
+                          )
+                        }
+                      />
+
+                      <span>
+                        <strong>
+                          Featured
+                        </strong>
+
+                        <small>
+                          Highlight this item
+                          across the website.
+                        </small>
+                      </span>
+                    </label>
+
+                    <label className="menu-toggle-card">
+                      <input
+                        type="checkbox"
+                        checked={
+                          itemDraft.chefFavourite
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              chefFavourite:
+                                event.target
+                                  .checked,
+                            }),
+                          )
+                        }
+                      />
+
+                      <span>
+                        <strong>
+                          Chef favourite
+                        </strong>
+
+                        <small>
+                          Mark this as a
+                          chef-recommended
+                          dish.
+                        </small>
+                      </span>
+                    </label>
+
+                    <label className="menu-toggle-card">
+                      <input
+                        type="checkbox"
+                        checked={
+                          itemDraft.popular
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setItemDraft(
+                            (current) => ({
+                              ...current,
+                              popular:
+                                event.target
+                                  .checked,
+                            }),
+                          )
+                        }
+                      />
+
+                      <span>
+                        <strong>
+                          Popular item
+                        </strong>
+
+                        <small>
+                          Mark this as a
+                          customer favourite.
                         </small>
                       </span>
                     </label>
@@ -1124,7 +1877,9 @@ export default function MenuManager({
                     <button
                       type="button"
                       className="button light"
-                      onClick={() => resetItemDraft()}
+                      onClick={() =>
+                        resetItemDraft()
+                      }
                       disabled={busy}
                     >
                       Reset
@@ -1139,23 +1894,37 @@ export default function MenuManager({
 
                   <article className="menu-preview-card">
                     <ImagePreview
-                      src={itemDraft.imageUrl}
-                      alt={itemDraft.name || "Menu item preview"}
+                      src={
+                        itemDraft.imageUrl
+                      }
+                      alt={
+                        itemDraft.name ||
+                        "Menu item preview"
+                      }
                       title="Menu image"
                       subtitle="Add a valid image URL to preview this item."
                       className="menu-preview-image"
                     >
-                      {itemDraft.soldOut && (
-                        <span className="status-chip sold-chip menu-preview-status">
-                          SOLD OUT
-                        </span>
-                      )}
+                      <div className="managed-menu-badges">
+                        {itemDraft.dineInOnly && (
+                          <span className="status-chip">
+                            DINE-IN ONLY
+                          </span>
+                        )}
+
+                        {!itemDraft.available && (
+                          <span className="status-chip hidden-chip">
+                            HIDDEN
+                          </span>
+                        )}
+                      </div>
                     </ImagePreview>
 
                     <div className="menu-preview-copy">
                       <div>
                         <h3>
-                          {itemDraft.name || "Menu item name"}
+                          {itemDraft.name ||
+                            "Menu item name"}
                         </h3>
 
                         <p>
@@ -1167,8 +1936,14 @@ export default function MenuManager({
                       <div className="menu-preview-bottom">
                         <strong>
                           {itemDraft.price &&
-                          Number.isFinite(Number(itemDraft.price))
-                            ? `$${Number(itemDraft.price).toFixed(2)}`
+                          Number.isFinite(
+                            Number(
+                              itemDraft.price,
+                            ),
+                          )
+                            ? `$${Number(
+                                itemDraft.price,
+                              ).toFixed(2)}`
                             : "$0.00"}
                         </strong>
                       </div>
@@ -1181,123 +1956,216 @@ export default function MenuManager({
             <section className="menu-list-card menu-list-redesign">
               <div className="menu-list-toolbar">
                 <div>
-                  <div className="eyebrow">CURRENT MENU</div>
-                  <h2>{selectedCategoryName}</h2>
+                  <div className="eyebrow">
+                    CURRENT MENU
+                  </div>
+
+                  <h2>
+                    {
+                      selectedCategoryName
+                    }
+                  </h2>
                 </div>
 
                 <div className="menu-list-tools">
                   <input
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={(event) =>
+                      setSearch(
+                        event.target.value,
+                      )
+                    }
                     placeholder="Search items..."
                   />
 
-                  <span>{visibleItems.length} items</span>
+                  <span>
+                    {visibleItems.length}{" "}
+                    items
+                  </span>
                 </div>
               </div>
 
               <div className="managed-item-grid">
-                {visibleItems.map((item) => (
-                  <article
-                    className={`managed-menu-card ${
-                      !item.active ? "inactive" : ""
-                    }`}
-                    key={item.id}
-                  >
-                    <ImagePreview
-                      src={item.imageUrl}
-                      alt={item.name}
-                      title="No image"
-                      subtitle="Edit this menu item to add an image."
-                      className="managed-menu-image"
+                {visibleItems.map(
+                  (item) => (
+                    <article
+                      className={`managed-menu-card ${
+                        !item.available
+                          ? "inactive"
+                          : ""
+                      }`}
+                      key={item.id}
                     >
-                      <div className="managed-menu-badges">
-                        {item.soldOut && (
-                          <span className="status-chip sold-chip">
-                            SOLD OUT
-                          </span>
-                        )}
+                      <ImagePreview
+                        src={item.imageUrl}
+                        alt={item.name}
+                        title="No image"
+                        subtitle="Edit this menu item to add an image."
+                        className="managed-menu-image"
+                      >
+                        <div className="managed-menu-badges">
+                          {item.dineInOnly && (
+                            <span className="status-chip">
+                              DINE-IN ONLY
+                            </span>
+                          )}
 
-                        {!item.active && (
-                          <span className="status-chip hidden-chip">
-                            HIDDEN
-                          </span>
-                        )}
-                      </div>
-                    </ImagePreview>
-
-                    <div className="managed-menu-content">
-                      <div className="managed-menu-title">
-                        <h3>{item.name}</h3>
-
-                        <strong>
-                          ${(item.priceCents / 100).toFixed(2)}
-                        </strong>
-                      </div>
-
-                      <p>{item.description || "No description"}</p>
-
-                      {Array.isArray(item.dietary) &&
-                        item.dietary.length > 0 && (
-                          <div className="tags">
-                            {item.dietary.map((tag) => (
-                              <span className="tag" key={tag}>
-                                {tag}
+                          {item.takeaway &&
+                            !item.dineInOnly && (
+                              <span className="status-chip">
+                                TAKEAWAY
                               </span>
-                            ))}
-                          </div>
-                        )}
+                            )}
 
-                      <div className="managed-item-actions">
-                        <button
-                          type="button"
-                          className="button light"
-                          onClick={() => editItem(item)}
-                        >
-                          Edit
-                        </button>
+                          {!item.available && (
+                            <span className="status-chip hidden-chip">
+                              HIDDEN
+                            </span>
+                          )}
+                        </div>
+                      </ImagePreview>
 
-                        <button
-                          type="button"
-                          className="button light"
-                          onClick={() =>
-                            quickUpdateItem(item, {
-                              soldOut: !item.soldOut,
-                            })
-                          }
-                        >
-                          {item.soldOut ? "Back in stock" : "Sold out"}
-                        </button>
+                      <div className="managed-menu-content">
+                        <div className="managed-menu-title">
+                          <h3>
+                            {item.name}
+                          </h3>
 
-                        <button
-                          type="button"
-                          className="button light"
-                          onClick={() =>
-                            quickUpdateItem(item, {
-                              active: !item.active,
-                            })
-                          }
-                        >
-                          {item.active ? "Hide" : "Show"}
-                        </button>
+                          <strong>
+                            $
+                            {(
+                              item.priceCents /
+                              100
+                            ).toFixed(2)}
+                          </strong>
+                        </div>
 
-                        <button
-                          type="button"
-                          className="button danger"
-                          onClick={() => deleteItem(item)}
-                        >
-                          Delete
-                        </button>
+                        <p>
+                          {item.description ||
+                            "No description"}
+                        </p>
+
+                        {Array.isArray(
+                          item.dietary,
+                        ) &&
+                          item.dietary
+                            .length >
+                            0 && (
+                            <div className="tags">
+                              {item.dietary.map(
+                                (tag) => (
+                                  <span
+                                    className="tag"
+                                    key={tag}
+                                  >
+                                    {tag}
+                                  </span>
+                                ),
+                              )}
+                            </div>
+                          )}
+
+                        <div className="managed-item-meta">
+                          <span>
+                            Order:{" "}
+                            {
+                              item.displayOrder
+                            }
+                          </span>
+
+                          {item.featured && (
+                            <span>
+                              Featured
+                            </span>
+                          )}
+
+                          {item.popular && (
+                            <span>
+                              Popular
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="managed-item-actions">
+                          <button
+                            type="button"
+                            className="button light"
+                            onClick={() =>
+                              editItem(
+                                item,
+                              )
+                            }
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            className="button light"
+                            onClick={() =>
+                              quickUpdateItem(
+                                item,
+                                {
+                                  dineInOnly:
+                                    !item.dineInOnly,
+                                  takeaway:
+                                    item.dineInOnly
+                                      ? true
+                                      : false,
+                                },
+                              )
+                            }
+                          >
+                            {item.dineInOnly
+                              ? "Enable takeaway"
+                              : "Dine-in only"}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="button light"
+                            onClick={() =>
+                              quickUpdateItem(
+                                item,
+                                {
+                                  available:
+                                    !item.available,
+                                },
+                              )
+                            }
+                          >
+                            {item.available
+                              ? "Hide"
+                              : "Show"}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="button danger"
+                            onClick={() =>
+                              deleteItem(
+                                item,
+                              )
+                            }
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  ),
+                )}
 
                 {!visibleItems.length && (
                   <div className="empty-menu-state">
-                    <h3>No menu items found</h3>
+                    <h3>
+                      No menu items found
+                    </h3>
+
                     <p>
-                      Create an item or change your search filter.
+                      Create an item or
+                      change your search
+                      filter.
                     </p>
                   </div>
                 )}
@@ -1310,7 +2178,9 @@ export default function MenuManager({
           <section className="menu-editor-card menu-editor-redesign">
             <div className="menu-editor-heading">
               <div>
-                <div className="eyebrow">CHEF SPECIALS</div>
+                <div className="eyebrow">
+                  CHEF SPECIALS
+                </div>
 
                 <h2>
                   {specialDraft.id
@@ -1323,7 +2193,9 @@ export default function MenuManager({
                 <button
                   type="button"
                   className="button light"
-                  onClick={resetSpecialDraft}
+                  onClick={
+                    resetSpecialDraft
+                  }
                   disabled={busy}
                 >
                   Add new instead
@@ -1339,13 +2211,20 @@ export default function MenuManager({
                 <div className="menu-form-row">
                   <label>
                     Special title
+
                     <input
-                      value={specialDraft.title}
+                      value={
+                        specialDraft.title
+                      }
                       onChange={(event) =>
-                        setSpecialDraft((current) => ({
-                          ...current,
-                          title: event.target.value,
-                        }))
+                        setSpecialDraft(
+                          (current) => ({
+                            ...current,
+                            title:
+                              event.target
+                                .value,
+                          }),
+                        )
                       }
                       placeholder="Eye Fillet"
                       maxLength={120}
@@ -1355,16 +2234,23 @@ export default function MenuManager({
 
                   <label>
                     Price (AUD)
+
                     <input
                       type="number"
                       min="0"
                       step="0.01"
-                      value={specialDraft.price}
+                      value={
+                        specialDraft.price
+                      }
                       onChange={(event) =>
-                        setSpecialDraft((current) => ({
-                          ...current,
-                          price: event.target.value,
-                        }))
+                        setSpecialDraft(
+                          (current) => ({
+                            ...current,
+                            price:
+                              event.target
+                                .value,
+                          }),
+                        )
                       }
                       placeholder="42.00"
                       required
@@ -1374,34 +2260,53 @@ export default function MenuManager({
 
                 <label>
                   Description
+
                   <textarea
                     rows={4}
                     maxLength={500}
-                    value={specialDraft.description}
-                    onChange={(event) =>
-                      setSpecialDraft((current) => ({
-                        ...current,
-                        description: event.target.value,
-                      }))
+                    value={
+                      specialDraft.description
                     }
-                    placeholder="Premium grilled eye fillet served with two golden potato croquettes on Kewpie mayo, seasonal mixed vegetables and rich gravy on the side."
+                    onChange={(event) =>
+                      setSpecialDraft(
+                        (current) => ({
+                          ...current,
+                          description:
+                            event.target
+                              .value,
+                        }),
+                      )
+                    }
+                    placeholder="Premium grilled eye fillet with seasonal vegetables and gravy."
                   />
 
                   <small>
-                    {specialDraft.description.length}/500 characters
+                    {
+                      specialDraft
+                        .description
+                        .length
+                    }
+                    /500 characters
                   </small>
                 </label>
 
                 <div className="menu-form-row">
                   <label>
                     Day or availability
+
                     <input
-                      value={specialDraft.day}
+                      value={
+                        specialDraft.day
+                      }
                       onChange={(event) =>
-                        setSpecialDraft((current) => ({
-                          ...current,
-                          day: event.target.value,
-                        }))
+                        setSpecialDraft(
+                          (current) => ({
+                            ...current,
+                            day:
+                              event.target
+                                .value,
+                          }),
+                        )
                       }
                       placeholder="Chef Special"
                       maxLength={60}
@@ -1410,13 +2315,20 @@ export default function MenuManager({
 
                   <label>
                     Badge
+
                     <input
-                      value={specialDraft.badge}
+                      value={
+                        specialDraft.badge
+                      }
                       onChange={(event) =>
-                        setSpecialDraft((current) => ({
-                          ...current,
-                          badge: event.target.value,
-                        }))
+                        setSpecialDraft(
+                          (current) => ({
+                            ...current,
+                            badge:
+                              event.target
+                                .value,
+                          }),
+                        )
                       }
                       placeholder="LIMITED TIME"
                       maxLength={60}
@@ -1426,35 +2338,45 @@ export default function MenuManager({
 
                 <label>
                   Image URL
+
                   <input
                     type="url"
-                    value={specialDraft.imageUrl}
+                    value={
+                      specialDraft.imageUrl
+                    }
                     onChange={(event) =>
-                      setSpecialDraft((current) => ({
-                        ...current,
-                        imageUrl: event.target.value,
-                      }))
+                      setSpecialDraft(
+                        (current) => ({
+                          ...current,
+                          imageUrl:
+                            event.target
+                              .value,
+                        }),
+                      )
                     }
                     placeholder="https://example.com/special.jpg"
                   />
-
-                  <small>
-                    Enter a complete direct JPG, PNG or WebP URL.
-                  </small>
                 </label>
 
                 <div className="menu-form-row compact">
                   <label>
                     Display order
+
                     <input
                       type="number"
                       step="1"
-                      value={specialDraft.sortOrder}
+                      value={
+                        specialDraft.sortOrder
+                      }
                       onChange={(event) =>
-                        setSpecialDraft((current) => ({
-                          ...current,
-                          sortOrder: event.target.value,
-                        }))
+                        setSpecialDraft(
+                          (current) => ({
+                            ...current,
+                            sortOrder:
+                              event.target
+                                .value,
+                          }),
+                        )
                       }
                     />
                   </label>
@@ -1462,20 +2384,29 @@ export default function MenuManager({
                   <label className="menu-toggle-card">
                     <input
                       type="checkbox"
-                      checked={specialDraft.active}
+                      checked={
+                        specialDraft.active
+                      }
                       onChange={(event) =>
-                        setSpecialDraft((current) => ({
-                          ...current,
-                          active: event.target.checked,
-                        }))
+                        setSpecialDraft(
+                          (current) => ({
+                            ...current,
+                            active:
+                              event.target
+                                .checked,
+                          }),
+                        )
                       }
                     />
 
                     <span>
-                      <strong>Active special</strong>
+                      <strong>
+                        Active special
+                      </strong>
+
                       <small>
-                        Show this special on the homepage and ordering
-                        page.
+                        Show this special
+                        on the website.
                       </small>
                     </span>
                   </label>
@@ -1497,7 +2428,9 @@ export default function MenuManager({
                   <button
                     type="button"
                     className="button light"
-                    onClick={resetSpecialDraft}
+                    onClick={
+                      resetSpecialDraft
+                    }
                     disabled={busy}
                   >
                     Reset
@@ -1512,27 +2445,33 @@ export default function MenuManager({
 
                 <article className="menu-preview-card special-preview-card">
                   <ImagePreview
-                    src={specialDraft.imageUrl}
+                    src={
+                      specialDraft.imageUrl
+                    }
                     alt={
-                      specialDraft.title || "Chef special preview"
+                      specialDraft.title ||
+                      "Chef special preview"
                     }
                     title="Special image"
                     subtitle="Add a valid image URL to preview this special."
                     className="menu-preview-image"
                   >
                     <span className="special-preview-badge">
-                      {specialDraft.badge || "CHEF SPECIAL"}
+                      {specialDraft.badge ||
+                        "CHEF SPECIAL"}
                     </span>
                   </ImagePreview>
 
                   <div className="menu-preview-copy">
                     <div>
                       <small>
-                        {specialDraft.day || "AVAILABLE NOW"}
+                        {specialDraft.day ||
+                          "AVAILABLE NOW"}
                       </small>
 
                       <h3>
-                        {specialDraft.title || "Chef special"}
+                        {specialDraft.title ||
+                          "Chef special"}
                       </h3>
 
                       <p>
@@ -1544,7 +2483,11 @@ export default function MenuManager({
                     <div className="menu-preview-bottom">
                       <strong>
                         {specialDraft.price &&
-                        Number.isFinite(Number(specialDraft.price))
+                        Number.isFinite(
+                          Number(
+                            specialDraft.price,
+                          ),
+                        )
                           ? `$${Number(
                               specialDraft.price,
                             ).toFixed(2)}`
@@ -1560,96 +2503,151 @@ export default function MenuManager({
           <section className="menu-list-card menu-list-redesign">
             <div className="menu-list-toolbar">
               <div>
-                <div className="eyebrow">CURRENT SPECIALS</div>
-                <h2>Chef specials</h2>
+                <div className="eyebrow">
+                  CURRENT SPECIALS
+                </div>
+
+                <h2>
+                  Chef specials
+                </h2>
               </div>
 
-              <span>{sortedSpecials.length} specials</span>
+              <span>
+                {sortedSpecials.length}{" "}
+                specials
+              </span>
             </div>
 
             <div className="managed-item-grid">
-              {sortedSpecials.map((special) => (
-                <article
-                  className={`managed-menu-card ${
-                    !special.active ? "inactive" : ""
-                  }`}
-                  key={special.id}
-                >
-                  <ImagePreview
-                    src={special.imageUrl}
-                    alt={special.title}
-                    title="No special image"
-                    subtitle="Edit this special to add an image."
-                    className="managed-menu-image"
+              {sortedSpecials.map(
+                (special) => (
+                  <article
+                    className={`managed-menu-card ${
+                      !special.active
+                        ? "inactive"
+                        : ""
+                    }`}
+                    key={special.id}
                   >
-                    <div className="managed-menu-badges">
-                      <span className="status-chip">
-                        {special.badge || "CHEF SPECIAL"}
-                      </span>
-
-                      {!special.active && (
-                        <span className="status-chip hidden-chip">
-                          HIDDEN
+                    <ImagePreview
+                      src={
+                        special.imageUrl
+                      }
+                      alt={special.title}
+                      title="No special image"
+                      subtitle="Edit this special to add an image."
+                      className="managed-menu-image"
+                    >
+                      <div className="managed-menu-badges">
+                        <span className="status-chip">
+                          {special.badge ||
+                            "CHEF SPECIAL"}
                         </span>
-                      )}
+
+                        {!special.active && (
+                          <span className="status-chip hidden-chip">
+                            HIDDEN
+                          </span>
+                        )}
+                      </div>
+                    </ImagePreview>
+
+                    <div className="managed-menu-content">
+                      <div className="managed-menu-title">
+                        <h3>
+                          {special.title}
+                        </h3>
+
+                        <strong>
+                          {special.price ===
+                          null
+                            ? "—"
+                            : `$${Number(
+                                special.price,
+                              ).toFixed(
+                                2,
+                              )}`}
+                        </strong>
+                      </div>
+
+                      <p>
+                        {special.description ||
+                          "No description"}
+                      </p>
+
+                      <div className="managed-item-meta">
+                        {special.day && (
+                          <span>
+                            {special.day}
+                          </span>
+                        )}
+
+                        <span>
+                          Order:{" "}
+                          {
+                            special.sortOrder
+                          }
+                        </span>
+                      </div>
+
+                      <div className="managed-item-actions">
+                        <button
+                          type="button"
+                          className="button light"
+                          onClick={() =>
+                            editSpecial(
+                              special,
+                            )
+                          }
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="button light"
+                          onClick={() =>
+                            quickUpdateSpecial(
+                              special,
+                              {
+                                active:
+                                  !special.active,
+                              },
+                            )
+                          }
+                        >
+                          {special.active
+                            ? "Hide"
+                            : "Show"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="button danger"
+                          onClick={() =>
+                            deleteSpecial(
+                              special,
+                            )
+                          }
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                  </ImagePreview>
-
-                  <div className="managed-menu-content">
-                    <div className="managed-menu-title">
-                      <h3>{special.title}</h3>
-
-                      <strong>
-                        {special.price === null
-                          ? "—"
-                          : `$${Number(special.price).toFixed(2)}`}
-                      </strong>
-                    </div>
-
-                    <p>{special.description || "No description"}</p>
-
-                    <div className="managed-item-meta">
-                      {special.day && <span>{special.day}</span>}
-                      <span>Order: {special.sortOrder}</span>
-                    </div>
-
-                    <div className="managed-item-actions">
-                      <button
-                        type="button"
-                        className="button light"
-                        onClick={() => editSpecial(special)}
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        className="button light"
-                        onClick={() =>
-                          quickUpdateSpecial(special, {
-                            active: !special.active,
-                          })
-                        }
-                      >
-                        {special.active ? "Hide" : "Show"}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="button danger"
-                        onClick={() => deleteSpecial(special)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ),
+              )}
 
               {!sortedSpecials.length && (
                 <div className="empty-menu-state">
-                  <h3>No chef specials yet</h3>
-                  <p>Create your first chef special above.</p>
+                  <h3>
+                    No chef specials yet
+                  </h3>
+
+                  <p>
+                    Create your first chef
+                    special above.
+                  </p>
                 </div>
               )}
             </div>

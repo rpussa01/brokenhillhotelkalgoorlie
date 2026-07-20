@@ -1,13 +1,17 @@
 import OrderingApp from "@/components/OrderingApp";
-import { getPublicMenu, getSpecials } from "@/lib/db";
+import {
+  getOnlineOrderingMenu,
+  getSpecials,
+} from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function OrderPage() {
-  const [{ categories, items, settings }, specials] = await Promise.all([
-    getPublicMenu(),
-    getSpecials(),
-  ]);
+  const [{ categories, items, settings }, specials] =
+    await Promise.all([
+      getOnlineOrderingMenu(),
+      getSpecials(),
+    ]);
 
   return (
     <OrderingApp
