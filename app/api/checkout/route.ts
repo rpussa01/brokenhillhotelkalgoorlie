@@ -143,14 +143,13 @@ export async function POST(request: Request) {
     ];
 
     const menuItems = await prisma.menuItem.findMany({
-      where: {
-        id: {
-          in: uniqueMenuItemIds,
-        },
-        active: true,
-        soldOut: false,
-      },
-    });
+  where: {
+    id: {
+      in: uniqueMenuItemIds,
+    },
+    available: true,
+  },
+});
 
     if (menuItems.length !== uniqueMenuItemIds.length) {
       return NextResponse.json(
