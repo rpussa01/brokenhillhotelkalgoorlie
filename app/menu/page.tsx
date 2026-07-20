@@ -108,7 +108,7 @@ export default async function MenuPage() {
                 {categoryItems.map((item) => (
                   <article
                     className={`venue-menu-card ${
-                      item.soldOut ? "is-sold-out" : ""
+                      item.available ? "is-sold-out" : ""
                     }`}
                     key={item.id}
                   >
