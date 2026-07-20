@@ -143,8 +143,7 @@ export async function POST(request: Request) {
               id: {
                 in: itemIds,
               },
-              active: true,
-              soldOut: false,
+              available: true,
             },
           })
         : Promise.resolve([]),
